@@ -1,0 +1,2 @@
+﻿domain,question,target_answer,evidence,target_file_name,target_page_no,context_type
+medical,(예시: 이 줄은 지우세요) 대장암의 5년 생존율은 얼마인가요?,(예시) 평균 5년 생존율은 74.3%이다.,(PDF 원문에서 그대로 복사한 구절),08 알기 쉬운 대장암.pdf,5,paragraph

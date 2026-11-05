@@ -1,0 +1,23 @@
+Direct use of automatic function calling (AFC) in Models.generate_content is not recommended. Instead, we recommend to use AFC in Chat.send_message. Similarly, direct use of AFC in Models.generate_content_stream is not recommended. Instead, we recommend to use AFC in Chat.send_message_stream.
+ocr  240319 알기쉬운 청년농신보 책자 p3 OK
+ocr  240319 알기쉬운 청년농신보 책자 p9 OK
+ocr  240319 알기쉬운 청년농신보 책자 p17 OK
+ocr  240319 알기쉬운 청년농신보 책자 p25 OK
+ocr  240319 알기쉬운 청년농신보 책자 p29 OK
+text 한-호주 퇴직연금 포럼_책자(최종) p2 OK
+text 한-호주 퇴직연금 포럼_책자(최종) p1 OK
+ocr  130292099630937500_K p55 OK
+text 130292099630937500_K p21 OK
+text 130292099630937500_K p6 REJ 원문이 답을 뒷받침하지 않음
+text 130292099630937500_K p27 OK
+ocr  133178946057443204_W p1 OK
+text 133178946057443204_W p55 OK
+text 133178946057443204_W p23 OK
+ocr  2024 달라지는 세금제도 p1 OK
+text 2024 달라지는 세금제도 p11 REJ 원문이 답을 뒷받침하지 않음
+text 2024 달라지는 세금제도 p5 REJ 원문이 답을 뒷받침하지 않음
+text 2024 달라지는 세금제도 p7 REJ 원문이 답을 뒷받침하지 않음
+text 2024 달라지는 세금제도 p25 REJ 원문이 답을 뒷받침하지 않음
+text 2024 달라지는 세금제도 p4 REJ 원문이 답을 뒷받침하지 않음
+text 2024 달라지는 세금제도 p30 REJ 원문이 답을 뒷받침하지 않음
+14 문항 저장

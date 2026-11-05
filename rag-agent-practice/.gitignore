@@ -1,0 +1,8 @@
+# 제공 데이터 (PDF 원본, 171MB)
+data/
+
+# API 키
+.env
+
+__pycache__/
+*.tmp

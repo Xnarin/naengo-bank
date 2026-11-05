@@ -1,0 +1,182 @@
+{
+ "토성의 고리는 몇 개이고 무엇으로 이루어져 있나요?": {
+  "question": "토성의 고리는 몇 개이고 무엇으로 이루어져 있나요?",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제공된 검색 결과에는 토성의 고리의 개수나 구성 물질에 대한 정보가 포함되어 있지 않습니다.",
+  "queries": [
+   "토성의 고리는 몇 개이고 무엇으로 이루어져 있나요?"
+  ],
+  "retrieved": [
+   "commerce/이커머스 솔루션 소개자료.pdf#22",
+   "medical/08 알기 쉬운 대장암.pdf#14",
+   "medical/jkan-38-140.pdf#13",
+   "commerce/쿠팡 상장과 이베이 인수  이후 국내 이커머스 시장은 어떻게 변할까.pdf#42",
+   "medical/jkan-38-140.pdf#31"
+  ],
+  "elapsed_sec": 3.27,
+  "declined": true
+ },
+ "BTS가 데뷔한 연도와 데뷔 앨범 이름은 무엇인가요?": {
+  "question": "BTS가 데뷔한 연도와 데뷔 앨범 이름은 무엇인가요?",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제시된 검색 결과에는 BTS의 데뷔 연도 및 데뷔 앨범 이름에 대한 정보가 없습니다.",
+  "queries": [
+   "BTS가 데뷔한 연도와 데뷔 앨범 이름은 무엇인가요?"
+  ],
+  "retrieved": [
+   "commerce/kr-im-new-luxury-business-trends-20220520.pdf#16",
+   "medical/08 알기 쉬운 대장암.pdf#14",
+   "medical/jkan-38-140.pdf#5",
+   "medical/2017년-안과감염병-관리지침.pdf#17",
+   "finance/[별첨] 지방은행의 시중은행 전환시 인가방식 및 절차.pdf#13"
+  ],
+  "elapsed_sec": 3.72,
+  "declined": true
+ },
+ "파이썬에서 리스트 컴프리헨션 문법을 설명해 주세요.": {
+  "question": "파이썬에서 리스트 컴프리헨션 문법을 설명해 주세요.",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제공된 검색 결과에는 파이썬의 리스트 컴프리헨션 문법에 대한 내용이 포함되어 있지 않습니다. 따라서 질문에 대해 답변할 수 없습니다.",
+  "queries": [
+   "파이썬에서 리스트 컴프리헨션 문법을 설명해 주세요."
+  ],
+  "retrieved": [
+   "commerce/중국21-18호 2021 라이브커머스 산업 보고.pdf#15",
+   "commerce/중국21-18호 2021 라이브커머스 산업 보고.pdf#24",
+   "commerce/이커머스 솔루션 소개자료.pdf#11",
+   "law/[민사] 스마트폰 성능조절기능이 탑재된 소프트웨어 업데이트로 인한 일부 성능제한 또는 앱 실행지연 등 불이익한 결과 초래 가능성에 대한 고지의무 불완전이행 여부가 문제된 사안.pdf#29",
+   "medical/kjg-74-4.pdf#7"
+  ],
+  "elapsed_sec": 3.68,
+  "declined": true
+ },
+ "김치찌개를 맛있게 끓이는 방법을 알려주세요.": {
+  "question": "김치찌개를 맛있게 끓이는 방법을 알려주세요.",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제시된 검색 결과에는 김치찌개를 맛있게 끓이는 방법에 대한 정보가 포함되어 있지 않습니다.",
+  "queries": [
+   "김치찌개를 맛있게 끓이는 방법을 알려주세요."
+  ],
+  "retrieved": [
+   "law/[특허] 원고 제품들의 실시가 피고의 제1, 3, 5항 발명을 침해하지 않는다고 판단한 사례(특허법원 2022나2213).pdf#10",
+   "law/[특허] 원고 제품들의 실시가 피고의 제1, 3, 5항 발명을 침해하지 않는다고 판단한 사례(특허법원 2022나2213).pdf#5",
+   "medical/위식도역류성질환(Gastroesophageal Reflux Disease) (2).pdf#21",
+   "medical/위식도역류성질환(Gastroesophageal Reflux Disease) (2).pdf#11",
+   "law/[특허] 원고 제품들의 실시가 피고의 제1, 3, 5항 발명을 침해하지 않는다고 판단한 사례(특허법원 2022나2213).pdf#6"
+  ],
+  "elapsed_sec": 3.87,
+  "declined": true
+ },
+ "에베레스트 산의 높이는 몇 미터인가요?": {
+  "question": "에베레스트 산의 높이는 몇 미터인가요?",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제공된 검색 결과에서 에베레스트 산의 높이에 대한 정보를 찾을 수 없습니다.",
+  "queries": [
+   "에베레스트 산의 높이는 몇 미터인가요?"
+  ],
+  "retrieved": [
+   "medical/위식도역류성질환(Gastroesophageal Reflux Disease) (2).pdf#23",
+   "medical/위식도역류성질환(Gastroesophageal Reflux Disease) (2).pdf#16",
+   "medical/위식도역류성질환(Gastroesophageal Reflux Disease) (2).pdf#15",
+   "medical/위식도역류성질환(Gastroesophageal Reflux Disease) (2).pdf#10",
+   "medical/위식도역류성질환(Gastroesophageal Reflux Disease) (2).pdf#13"
+  ],
+  "elapsed_sec": 2.93,
+  "declined": true
+ },
+ "공룡은 몇 년 전에 멸종했나요?": {
+  "question": "공룡은 몇 년 전에 멸종했나요?",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제시된 검색 결과에는 공룡이 몇 년 전에 멸종했는지에 대한 정보가 포함되어 있지 않습니다.",
+  "queries": [
+   "공룡은 몇 년 전에 멸종했나요?"
+  ],
+  "retrieved": [
+   "public/국가안전시스템 개편 종합대책 대국민 보고(12.31. 기준).pdf#17",
+   "law/[행정] 원고가 담배브랜드의 상표 등 사용에 관하여 다국적기업에게 지급하는 로열티가 원고가 다른 계열사 등으로부터 수입하는 담배재료의 권리사용료라는 전제에서 관세가 부과되자 그 부과처분의 취소를 구하는 사건.pdf#20",
+   "medical/20080813_E_2.pdf#29",
+   "medical/20080813_E_2.pdf#30",
+   "finance/133178946057443204_WP22-05.pdf#37"
+  ],
+  "elapsed_sec": 2.72,
+  "declined": true
+ },
+ "셰익스피어의 햄릿에서 주인공이 복수하려는 대상은 누구인가요?": {
+  "question": "셰익스피어의 햄릿에서 주인공이 복수하려는 대상은 누구인가요?",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제시된 검색 결과에는 셰익스피어의 《햄릿》이나 주인공이 복수하려는 대상에 대한 내용이 포함되어 있지 않습니다. 따라서 검색 결과를 바탕으로는 해당 질문에 답변할 수 없습니다.",
+  "queries": [
+   "셰익스피어의 햄릿에서 주인공이 복수하려는 대상은 누구인가요?"
+  ],
+  "retrieved": [
+   "medical/jkan-38-140.pdf#30",
+   "finance/130292099630937500_KIFVIP2013-10.pdf#41",
+   "medical/2017년-안과감염병-관리지침.pdf#21",
+   "commerce/MezzoMedia 산업 보고서 e커머스.pdf#18",
+   "commerce/쿠팡 상장과 이베이 인수  이후 국내 이커머스 시장은 어떻게 변할까.pdf#50"
+  ],
+  "elapsed_sec": 3.16,
+  "declined": true
+ },
+ "고래상어의 평균 수명은 얼마인가요?": {
+  "question": "고래상어의 평균 수명은 얼마인가요?",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제공된 검색 결과에 고래상어의 평균 수명에 대한 정보가 포함되어 있지 않아 답변을 드릴 수 없습니다.",
+  "queries": [
+   "고래상어의 평균 수명은 얼마인가요?"
+  ],
+  "retrieved": [
+   "medical/journal-31-3-308.pdf#8",
+   "finance/130292099630937500_KIFVIP2013-10.pdf#44",
+   "medical/20080813_E_2.pdf#6",
+   "law/[민사] 스마트폰 성능조절기능이 탑재된 소프트웨어 업데이트로 인한 일부 성능제한 또는 앱 실행지연 등 불이익한 결과 초래 가능성에 대한 고지의무 불완전이행 여부가 문제된 사안.pdf#11",
+   "finance/130292099630937500_KIFVIP2013-10.pdf#35"
+  ],
+  "elapsed_sec": 2.83,
+  "declined": true
+ },
+ "피보나치 수열의 10번째 항은 무엇인가요?": {
+  "question": "피보나치 수열의 10번째 항은 무엇인가요?",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제시된 검색 결과에는 피보나치 수열 또는 피보나치 수열의 10번째 항에 대한 내용이 포함되어 있지 않아 답변을 찾을 수 없습니다.",
+  "queries": [
+   "피보나치 수열의 10번째 항은 무엇인가요?"
+  ],
+  "retrieved": [
+   "medical/jkan-38-140.pdf#8",
+   "medical/jkan-38-140.pdf#5",
+   "law/[행정] 금품 등 약속이 공무원 재직 중에 이루어지고 수수가 퇴직 후에 이루어진 경우 공무원연금법에 해당하는 지가 문제된 사건.pdf#13",
+   "medical/08 알기 쉬운 대장암.pdf#14",
+   "law/[행정] 금품 등 약속이 공무원 재직 중에 이루어지고 수수가 퇴직 후에 이루어진 경우 공무원연금법에 해당하는 지가 문제된 사건.pdf#33"
+  ],
+  "elapsed_sec": 3.18,
+  "declined": true
+ },
+ "피카소의 게르니카는 어떤 사건을 그린 작품인가요?": {
+  "question": "피카소의 게르니카는 어떤 사건을 그린 작품인가요?",
+  "domain": "none",
+  "status": "answered",
+  "answer": "제시된 검색 결과에는 피카소의 ‘게르니카’나 해당 작품이 어떤 사건을 그린 것인지에 대한 정보가 포함되어 있지 않습니다.",
+  "queries": [
+   "피카소의 게르니카는 어떤 사건을 그린 작품인가요?"
+  ],
+  "retrieved": [
+   "commerce/중국21-18호 2021 라이브커머스 산업 보고.pdf#37",
+   "law/[민사] 스마트폰 성능조절기능이 탑재된 소프트웨어 업데이트로 인한 일부 성능제한 또는 앱 실행지연 등 불이익한 결과 초래 가능성에 대한 고지의무 불완전이행 여부가 문제된 사안.pdf#37",
+   "law/[민사] 스마트폰 성능조절기능이 탑재된 소프트웨어 업데이트로 인한 일부 성능제한 또는 앱 실행지연 등 불이익한 결과 초래 가능성에 대한 고지의무 불완전이행 여부가 문제된 사안.pdf#15",
+   "law/[민사] 스마트폰 성능조절기능이 탑재된 소프트웨어 업데이트로 인한 일부 성능제한 또는 앱 실행지연 등 불이익한 결과 초래 가능성에 대한 고지의무 불완전이행 여부가 문제된 사안.pdf#19",
+   "medical/jkan-38-140.pdf#14"
+  ],
+  "elapsed_sec": 3.76,
+  "declined": true
+ }
+}
