@@ -1,0 +1,63 @@
+﻿id,topic,question,source_url,style,answerable_now,source_or_gap
+C01,이체,계좌이체를 잘 몰 힜을 때 어떻게하나요,https://www.a-ha.io/questions/408de59ccac0376daa8366007d99f38a,모호,Y,내금고FAQ 착오송금
+C02,이체,입금을 제대로 했는데 돈이 들어오지 않았다고 하십니다,https://www.a-ha.io/questions/41ce884d8a11208795eaa5556634b484,모호,부분,내금고FAQ 송금 오류 / 점검시간 정보 없음
+C03,이체,은행 점검시간에 계좌이체가 불가능한 이유가 뭔가요?,https://www.a-ha.io/questions/4261f7aec4d94082a16653b7791c77f8,구체,N,점검시간 안내 문서 없음
+C04,이체,농협 은행 점검시간에도 이체받을수있나요??,https://www.a-ha.io/questions/4fb945fbe4a4cddfb669a84a5362ba59,구체,N,점검시간 안내 문서 없음
+C05,이체,타인 적금 통장으로도 계좌이체가 가능한가요?,https://www.a-ha.io/questions/4d705a835bf83fb8a54be59959937ba5,구체,N,적금 입금 규칙 없음(적립식예금약관 추가 시 부분)
+C06,이체,계좌이체를 해준 사람의 실명을 알 수 있나요??,https://www.a-ha.io/questions/442d87fdd50555278a830438b8b57b77,구체,N,송금인 정보 안내 없음
+C07,이체,송금 보낸 사람이 누구인지 모를 때 상대 계좌번호를 알 수 있나요?,https://www.a-ha.io/questions/4cce832c6fbc98d58da5de5ec2e9c8f1,구체,N,송금인 정보 안내 없음
+C08,이체,해외에 가족 둔 사람들은 이체를 어떻게 하는지 궁금해여?,https://www.a-ha.io/questions/43fdc415d0737440a08028d375a40c30,모호,N,해외송금 미제공 → 보류
+C09,모르는입금,통장에 모르는 돈이 입금되었을땐 어떻게해야하나요??,https://www.a-ha.io/questions/4d2e4bd1a2ed7f2486d1c2412bf9ae66,모호,부분,지급정지 FAQ는 있으나 '쓰지 말고 은행에 알리기' 안내 없음
+C10,모르는입금,모르는 사람이 계좌로 돈을 입금했는데?,https://www.a-ha.io/questions/4e4dc30c5cff1c8cb98ea3ff0bd4fab2,모호,부분,위와 같음
+C11,모르는입금,모르는 사람이 모임통장에 입금했는데 어떻게 해야 하나요?,https://www.a-ha.io/questions/47dc939467cb4a5da080a48786f4b704,구체,부분,모임통장 FAQ + 모르는 입금 안내 필요
+C12,모르는입금,돈을 잘못 입금하고 그 입금계좌를 신고하면 계좌사용 못하나요?,https://www.a-ha.io/questions/4a44a184e2d447ba8fc84b1a1bf2208f,구체,부분,착오송금은 지급정지 대상 아님 안내 없음
+C13,지급정지,계좌가 지급정지되었을 때 빠르게 푸는 방법(중고거래 입금),https://www.lawtalk.co.kr/posts/151705,모호,Y,통신사기피해환급법 제7조 + 내금고FAQ
+C14,지급정지,사기 가해자 계좌를 정지시킬 수 있나요?,https://www.a-ha.io/questions/49284418e9e09fc88b44696cee35d701,구체,Y,통신사기피해환급법 제3조·제4조
+C15,지급정지,토토 환전 후 계좌정지(전기통신금융사기),https://www.a-ha.io/questions/4e40d5f65fc11ddea191c95a2868dad6,구체,부분,제7조 이의제기. 불법도박은 범위 밖
+C16,보이스피싱,보이스 피싱 당했을때 어떻게 대처해야나요,https://www.a-ha.io/questions/4c6c693b89428f95a022f2f1d5c451a0,모호,Y,내금고FAQ 보이스피싱
+C17,보이스피싱,"경찰, 검찰 사칭 보이스피싱 대응법, 확인법",https://www.a-ha.io/questions/4daa5e418921886fa232b1e4993b1868,모호,Y,내금고FAQ 사칭 전화
+C18,보이스피싱,갑자기 인증번호 문자를 받았는데 대응방법이 어떻게될까요?,https://www.a-ha.io/questions/4493637d6fcf4383bbc1bf502fbe9a8b,모호,부분,내금고FAQ 사칭 전화(인증번호 묻지 않음)
+C19,보이스피싱,제 계좌 번호를 타인이 악용할 수 있나요?,https://www.a-ha.io/questions/4f1774049dcfe5b98445702a16593b04,모호,N,계좌번호 노출 위험 안내 없음
+C20,보이스피싱,계좌번호를 알려주는 것 만으로도 문제가 생길 수 있나요?,https://www.a-ha.io/questions/4b48c570b5b27d0d9d496d9c22791317,모호,N,위와 같음
+C21,보이스피싱,해외에서 결제됐다는 문자가 왔어요,https://www.a-ha.io/questions/4bb0c171f2a407b3ae213679ebdee10d,모호,N,스미싱 안내 없음
+C22,이자,파킹 통장에서 발생한 이자에 대해서도 세금이 부과되는지요?,https://www.a-ha.io/questions/49189db5dc5dd59497ccc65484df747a,구체,Y,내금고FAQ 이자 세금
+C23,이자,파킹통장의 하루 이자를 구하려면 어떻게 하나요?,https://www.a-ha.io/questions/416a4de24d53d81694c75c8a4a97b3d9,구체,부분,내금고FAQ 이자 지급 + 예금거래기본약관 제9조
+C24,이자,파킹통장이 무엇인가요? 예금의 종류인가요?,https://www.a-ha.io/questions/44cac2fdcfc71f7ea84c7d2116ba674a,모호,부분,상품 설명(mock.ts)이 청크에 없음 → FAQ만
+C25,이자,입출금 통장과 파킹 통장에 차이점이 뭔가요?,https://www.a-ha.io/questions/41ea8757c97403d7ac83141d10cd4620,모호,부분,위와 같음
+C26,이자,하루만 지나도 이자 주는 통장중 제일 많이 주는 통장은 어디인가요??,https://www.a-ha.io/questions/478a769052dde262a143fec485e482b2,모호,N,타행 비교·추천 → 범위 결정 필요
+C27,이자,2억이하 파킹통장 추천부탁드려요 이율 3%넘는게 있을까요?,https://www.a-ha.io/questions/4c14c4e7b89764efa06b26281bfa57f5,모호,N,타행 비교·추천 → 범위 결정 필요
+C28,예금자보호,인터넷은행도 시중은행처럼 안전한가요?,https://www.a-ha.io/questions/48c78121aa049ff79050346beccd0266,모호,Y,예금자보호법 시행령 제18조 + 내금고FAQ
+C29,예금자보호,카카오뱅크나 토스도 예금자보호가 되나요?,https://www.a-ha.io/questions/497d218d8450c9748a76628a1a523c79,구체,부분,타행 질문. 일반 원칙만 답 가능
+C30,예금자보호,예금자보호법 한도 이자 포함인가요?,https://www.a-ha.io/questions/4184e73acdb2e976930266911d3d914a,구체,Y,내금고FAQ 예금자보호(원금+소정의 이자)
+C31,중도해지,적금 만기를 깨면 어떻게 되나요?,https://www.a-ha.io/questions/48f404e748145d649429383c84465200,모호,N,적립식예금약관·상품설명서 없음
+C32,중도해지,정기예금 가입후 중도해지시 불이익이 있나요?,https://www.a-ha.io/questions/4932bc08ddde0568a387957d25111a1c,모호,N,거치식 상품 없음
+C33,휴면,은행 계좌를 오랫동안 안쓰면 사라지나요?,https://www.a-ha.io/questions/41d13015bccd9cc3bd03c6143e419856,모호,Y,예금거래기본약관 제9조의2 + 내금고FAQ
+C34,휴면,20년전 통장 잔액확인 할 수 있나요?,https://www.a-ha.io/questions/47a8f9a4f06012938f64c311f7e08ef9,구체,Y,예금거래기본약관 제9조의2(휴면예금 지급청구) + 내금고FAQ
+C35,휴면,통장에 잔고가 0원이면 계좌가 없어질 수 있나요?,https://www.a-ha.io/questions/4dee666f6e6ddfcb8c47f5b6674bd41d,구체,Y,예금거래기본약관 제9조의2 ③
+C36,휴면,본인의 모든 은행계좌에 있는 잔고를 조회하는 방법은 무엇인가요?,https://www.a-ha.io/questions/47cb19316b41e2a4afffbc278ad73bf2,구체,부분,내금고FAQ 휴면(어카운트인포 언급)
+C37,해지,안쓰는 통장들 한번에 정리하는 방법?,https://www.a-ha.io/questions/41ee393a044d57d89e37214f5063d47e,모호,부분,내금고FAQ 해지
+C38,해지,통장 자동이체 다수건 해지방법 알려주세요,https://www.a-ha.io/questions/4ce0ea02d8b95d5dbdfed471eea549c9,구체,N,자동이체 안내 없음
+C39,해지,거래정지계좌는 어떻게 풀어야 하나요?,https://www.a-ha.io/questions/4d0707ab47f4beeb853d0821c70609fa,모호,부분,한도계좌/지급정지/휴면 중 무엇인지 되물어야 함
+C40,카드,분실로 정지한 카드 재사용 가능한가요?,https://www.a-ha.io/questions/42d859950b3cd471a8267578e61bff03,구체,Y,내금고FAQ 분실 정지 해제
+C41,카드,카드분실때문에 체크카드정지했는데 계좌랑은 상관없나요?,https://www.a-ha.io/questions/4b9fd04fe6b6233fa5100ca087d24cb5,구체,N,카드 정지와 계좌 관계 안내 없음
+C42,카드,체크카드를 잃어버렸는데 인터넷으로 재발급은 불가한가요?,https://www.a-ha.io/questions/4d8f5430f7199c689d52b8b3ad87f3a3,구체,부분,내금고FAQ 카드 분실
+C43,카드,체크카드 수령 못하면 어떻게 되나요? 재신청 가능한가요?,https://www.a-ha.io/questions/4d9b668f077d1923a97d97202c47ec82,구체,N,카드 배송 안내 없음
+C44,보안,은행어플 비밀번호를 5회 틀렸다면?,https://www.a-ha.io/questions/4696eceb7a6837618f04e1ab61b0aab7,구체,Y,내금고FAQ 비밀번호 오류
+C45,보안,신한 계좌비밀번호를 5회이상틀려서 잠기면 출금도 안되나요?,https://www.a-ha.io/questions/4f1464c57243698f9090b348d9b612a3,구체,Y,내금고FAQ 비밀번호 오류(이체 제한)
+C46,보안,"번호이동하면 은행,주식 어플 비번 다 새로 등록해야하나요?",https://www.a-ha.io/questions/40f3bf3fe22141f684312db59af1841e,모호,Y,내금고FAQ 휴대폰 변경
+C47,보안,통장 비밀번호 분실햇을 경우 대처하는 방법 좀 알려주세요~,https://www.a-ha.io/questions/464e56ea6507a1da9062b5f6afa1d32a,모호,Y,내금고FAQ 비밀번호 + 예금거래기본약관 제13조
+C48,계좌개설,통장 20일 개설 제한이 생긴 이유는 무엇인가요?,https://www.a-ha.io/questions/4e0ba2af38dbca42927c818202e7a009,구체,Y,내금고FAQ 20영업일
+C49,계좌개설,계좌 개설 후 해지해도 20영업일 개설 걸리나요?,https://www.a-ha.io/questions/4f4dcb86eba9528fb45bcca44ac98286,구체,N,해지 시 적용 여부 안내 없음
+C50,계좌개설,만14세는 계좌만드는게 불가능한가요?,https://www.a-ha.io/questions/433581f736b3bff9b5a1f1305d51a322,구체,부분,내금고FAQ 가입 연령(만 17세 이상)
+C51,계좌개설,몇 세부터 통장을 부모 없이 가서 만들 수 있나요?,https://www.a-ha.io/questions/4470b23581cb266f9e001dde4ba0505b,모호,부분,위와 같음
+C52,계좌개설,여자친구랑 같이 공동명의 통장으로 돈 모으려고 하는데,https://www.a-ha.io/questions/47e42e0ad92bbeb5ac8f3addd648d7e9,모호,부분,내금고FAQ 모임통장(공동명의 아님)
+C53,한도,국민은행 한도제한계좌 해제 방법에 대해,https://www.a-ha.io/questions/459827cd7b8bb360ba3995959b5310b7,구체,Y,내금고FAQ 한도계좌(타행명 → 내금고 기준 안내)
+C54,대출,대출을 중도상환했는데 신용점수가 떨어졌어요,https://www.a-ha.io/questions/49f479cdd34410a6858c62ee1df67c55,모호,N,신용점수 안내 없음
+C55,대출,대출금을 하루 늦게갚으면 신용점수가 하락하나요?,https://www.a-ha.io/questions/49b2736b46632a7abd1a5eaf3d243a91,구체,부분,여신거래약관(가계용) 제3조(지연배상금). 신용점수는 없음
+C56,대출,주택 담보대출 받은후 일부 상환 가능한가요?,https://www.a-ha.io/questions/4001b85ce86da84b8fcb3e784c5f001e,구체,Y,여신거래약관(가계용) 제10조
+C57,대출,신용대출 갈아탈때 중간에 갈아타면 위약금같은게 있나요?,https://www.a-ha.io/questions/4fcee8955070f41eb109ad34cfaebd3e,모호,부분,여신거래약관(가계용) 제10조(수수료 정함이 있으면 부담)
+C58,대출,대출계약 철회 시 불이익이 있나요?,https://www.a-ha.io/questions/482240aff56fee1ab27bfa1ca12943fd,모호,Y,여신거래약관(가계용) 제4조의2 + 금소법 제46조
+C59,대출,청약철회 기간 이후에도 취소가 가능한가요?,https://www.a-ha.io/questions/41ac314657cd63ea97df5f88bcf35d11,모호,부분,금소법 제46조(기간) / 이후는 해지·중도상환
+C60,명의,통장 또는 체크 카드를 타인에게 양도 했을경우 처벌을 받는가요.,https://www.a-ha.io/questions/4273ce8443e064d4937e64d4cef13751,구체,부분,전자금융거래법 제6조(양도 금지)만 있음. 벌칙 장을 청크에서 빼서 처벌 수위는 답 못함
+C61,명의,가족간에 통장대여 처벌 어떻게되나요??,https://www.a-ha.io/questions/4107c1c5b76ade1f8e4f79cd87ae012a,구체,부분,위와 같음
+C62,명의,타인에게 합의하에 통장이나 카드를 빌려주어도 되나요?,https://www.a-ha.io/questions/445438da00ddf87fab1145219420970c,모호,부분,전자금융거래법 제6조 + 금융실명법 제3조

@@ -1,0 +1,1278 @@
+{
+ "summary": {
+  "method": "hybrid",
+  "k": 5,
+  "n": 74,
+  "hit@1": 0.703,
+  "hit@3": 0.811,
+  "hit@5": 0.878,
+  "mrr": 0.767,
+  "evidence_hit@5": 0.784
+ },
+ "records": [
+  {
+   "id": "G01",
+   "question": "은행이 망하면 내 예금은 얼마까지 돌려받을 수 있어요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": false,
+   "top_score": 0.0299,
+   "retrieved": [
+    "faq/내금고FAQ.md#26",
+    "faq/내금고FAQ.md#30",
+    "faq/금융용어해설_기업은행.csv#10",
+    "laws/예금자보호법_법률.md#0",
+    "faq/내금고FAQ.md#22"
+   ]
+  },
+  {
+   "id": "G02",
+   "question": "다른 사람 계좌로 잘못 보낸 돈은 언제까지 반환 신청해야 해요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 2,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#12",
+    "faq/착오송금반환FAQ.csv#0",
+    "faq/착오송금반환FAQ.csv#3",
+    "faq/내금고FAQ.md#14",
+    "faq/착오송금반환FAQ.csv#7"
+   ]
+  },
+  {
+   "id": "G03",
+   "question": "300만원을 잘못 송금했는데 예금보험공사 반환지원을 받을 수 있나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#12",
+    "faq/착오송금반환FAQ.csv#8",
+    "faq/착오송금반환FAQ.csv#1",
+    "faq/착오송금반환FAQ.csv#3",
+    "faq/착오송금반환FAQ.csv#0"
+   ]
+  },
+  {
+   "id": "G04",
+   "question": "검사라는 사람이 돈을 옮겨야 한다고 해서 보냈어요. 어떻게 해야 하죠?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#30",
+    "faq/내금고FAQ.md#12",
+    "faq/내금고FAQ.md#14",
+    "faq/착오송금반환FAQ.csv#10",
+    "faq/내금고FAQ.md#15"
+   ]
+  },
+  {
+   "id": "G05",
+   "question": "제 계좌가 갑자기 사기계좌로 지급정지됐어요. 억울한데 방법이 있나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": false,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#32",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#12",
+    "faq/내금고FAQ.md#30",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#11",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#20"
+   ]
+  },
+  {
+   "id": "G06",
+   "question": "통장 비밀번호를 은행에 안 가고 앱에서 바꿀 수 있어요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0323,
+   "retrieved": [
+    "terms/예금거래기본약관.md#14",
+    "faq/내금고FAQ.md#29",
+    "faq/내금고FAQ.md#28",
+    "faq/내금고FAQ.md#10",
+    "terms/예금거래기본약관.md#5"
+   ]
+  },
+  {
+   "id": "G07",
+   "question": "체크카드를 잃어버렸는데 뭐부터 해야 돼요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#17",
+    "faq/내금고FAQ.md#16",
+    "faq/내금고FAQ.md#18",
+    "faq/내금고FAQ.md#19",
+    "terms/예금거래기본약관.md#15"
+   ]
+  },
+  {
+   "id": "G08",
+   "question": "다른 은행으로 이체하면 수수료가 나가요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#8",
+    "terms/예금거래기본약관.md#19",
+    "faq/내금고FAQ.md#14",
+    "faq/내금고FAQ.md#10",
+    "faq/내금고FAQ.md#12"
+   ]
+  },
+  {
+   "id": "G09",
+   "question": "하루에 최대 얼마까지 송금할 수 있어요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#9",
+    "faq/내금고FAQ.md#12",
+    "faq/내금고FAQ.md#14",
+    "faq/착오송금반환FAQ.csv#3",
+    "faq/내금고FAQ.md#15"
+   ]
+  },
+  {
+   "id": "G10",
+   "question": "통장을 새로 만들었는데 100만원 넘게 보내지지가 않아요.",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 2,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#9",
+    "faq/내금고FAQ.md#3",
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#12"
+   ]
+  },
+  {
+   "id": "G11",
+   "question": "직장인인데 한도계좌 풀려면 어떤 서류를 내야 해요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#4",
+    "faq/내금고FAQ.md#3",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#9",
+    "terms/예금거래기본약관.md#2",
+    "faq/내금고FAQ.md#1"
+   ]
+  },
+  {
+   "id": "G12",
+   "question": "입출금통장을 하나 더 만들려는데 안 된다고 나와요.",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#0",
+    "faq/내금고FAQ.md#16",
+    "faq/내금고FAQ.md#5"
+   ]
+  },
+  {
+   "id": "G13",
+   "question": "이체가 잘못 처리돼서 정정을 요청했어요. 은행은 언제까지 결과를 알려줘야 하나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#14",
+    "laws/전자금융거래법_법률.md#15",
+    "faq/내금고FAQ.md#12",
+    "laws/전자금융거래법_시행령.md#40",
+    "laws/전자금융거래법_시행령.md#11"
+   ]
+  },
+  {
+   "id": "G14",
+   "question": "파킹통장 가입했는데 마음이 바뀌면 청약철회 되나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 2,
+   "evidence_hit": true,
+   "top_score": 0.0323,
+   "retrieved": [
+    "faq/내금고FAQ.md#5",
+    "faq/내금고FAQ.md#6",
+    "faq/내금고FAQ.md#22",
+    "laws/금융소비자보호에관한법률_법률.md#67",
+    "faq/내금고FAQ.md#1"
+   ]
+  },
+  {
+   "id": "G15",
+   "question": "신용대출을 받았는데 취소하고 싶어요. 며칠 안에 해야 해요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0303,
+   "retrieved": [
+    "terms/은행여신거래기본약관_가계용.md#7",
+    "laws/금융소비자보호에관한법률_법률.md#66",
+    "laws/예금자보호법_법률.md#11",
+    "terms/예금거래기본약관.md#7",
+    "laws/금융소비자보호에관한법률_법률.md#67"
+   ]
+  },
+  {
+   "id": "G16",
+   "question": "대출 만기 전에 미리 갚아도 되나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "terms/은행여신거래기본약관_가계용.md#17",
+    "terms/은행여신거래기본약관_가계용.md#11",
+    "terms/은행여신거래기본약관_가계용.md#14",
+    "terms/은행여신거래기본약관_가계용.md#6",
+    "terms/은행여신거래기본약관_가계용.md#13"
+   ]
+  },
+  {
+   "id": "G17",
+   "question": "대출을 연체하면 지연배상금은 어떻게 계산돼요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "terms/은행여신거래기본약관_가계용.md#3",
+    "terms/은행여신거래기본약관_가계용.md#4",
+    "terms/은행여신거래기본약관_가계용.md#11",
+    "terms/은행여신거래기본약관_가계용.md#5",
+    "terms/은행여신거래기본약관_가계용.md#17"
+   ]
+  },
+  {
+   "id": "G18",
+   "question": "파킹통장에 5천만원 넘게 넣으면 금리가 어떻게 돼요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#22",
+    "faq/내금고FAQ.md#20",
+    "faq/내금고FAQ.md#24",
+    "faq/내금고FAQ.md#23",
+    "faq/내금고FAQ.md#5"
+   ]
+  },
+  {
+   "id": "G19",
+   "question": "청년 입출금통장 우대금리는 몇 살까지 받을 수 있어요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#23",
+    "faq/내금고FAQ.md#0",
+    "faq/내금고FAQ.md#24",
+    "products/savingProductsSearch.json#58",
+    "products/savingProductsSearch.json#59"
+   ]
+  },
+  {
+   "id": "G20",
+   "question": "생활비통장 급여 실적은 어떤 입금이 인정돼요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#24",
+    "faq/내금고FAQ.md#1",
+    "terms/예금거래기본약관.md#4",
+    "terms/예금거래기본약관.md#6",
+    "terms/예금거래기본약관.md#7"
+   ]
+  },
+  {
+   "id": "G21",
+   "question": "모임통장에서 모임원도 돈을 뺄 수 있어?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#25",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#7",
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#16"
+   ]
+  },
+  {
+   "id": "G22",
+   "question": "입출금통장 이자는 언제 들어와요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#20",
+    "faq/내금고FAQ.md#23",
+    "terms/예금거래기본약관.md#9",
+    "terms/예금거래기본약관.md#12",
+    "faq/내금고FAQ.md#2"
+   ]
+  },
+  {
+   "id": "G23",
+   "question": "예금 이자에서 세금은 얼마나 떼요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#21",
+    "terms/예금거래기본약관.md#9",
+    "faq/금융용어해설_기업은행.csv#3",
+    "products/depositProductsSearch.json#35",
+    "products/depositProductsSearch.json#12"
+   ]
+  },
+  {
+   "id": "G24",
+   "question": "IRP가 뭔가요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/금융용어해설_기업은행.csv#0",
+    "faq/금융용어해설_기업은행.csv#17",
+    "terms/예금거래기본약관.md#0",
+    "products/mortgageLoanProductsSearch.json#7",
+    "terms/은행여신거래기본약관_가계용.md#0"
+   ]
+  },
+  {
+   "id": "G25",
+   "question": "5년 넘게 안 쓴 통장은 어떻게 돼요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.032,
+   "retrieved": [
+    "faq/내금고FAQ.md#7",
+    "terms/예금거래기본약관.md#10",
+    "faq/내금고FAQ.md#2",
+    "terms/예금거래기본약관.md#15",
+    "terms/예금거래기본약관.md#4"
+   ]
+  },
+  {
+   "id": "G26",
+   "question": "친구 이름으로 통장을 만들어서 제가 써도 되나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0318,
+   "retrieved": [
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#11",
+    "terms/예금거래기본약관.md#4",
+    "faq/내금고FAQ.md#3"
+   ]
+  },
+  {
+   "id": "G27",
+   "question": "은행이라고 전화가 와서 인증번호를 알려달래요. 알려줘도 돼요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#31",
+    "faq/내금고FAQ.md#29",
+    "faq/내금고FAQ.md#12",
+    "faq/내금고FAQ.md#27",
+    "faq/내금고FAQ.md#30"
+   ]
+  },
+  {
+   "id": "G28",
+   "question": "승진해서 연봉이 올랐는데 대출 금리를 낮춰달라고 할 수 있나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 4,
+   "evidence_hit": true,
+   "top_score": 0.0311,
+   "retrieved": [
+    "terms/은행여신거래기본약관_가계용.md#16",
+    "terms/은행여신거래기본약관_가계용.md#11",
+    "products/mortgageLoanProductsSearch.json#24",
+    "terms/은행여신거래기본약관_가계용.md#5",
+    "faq/내금고FAQ.md#10"
+   ]
+  },
+  {
+   "id": "G29",
+   "question": "AI 어시스턴트한테 송금해달라고 하면 바로 돈이 나가요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#15",
+    "faq/내금고FAQ.md#30",
+    "faq/내금고FAQ.md#14",
+    "faq/내금고FAQ.md#19",
+    "faq/내금고FAQ.md#12"
+   ]
+  },
+  {
+   "id": "G30",
+   "question": "계좌이체로 입금하면 언제부터 예금으로 인정돼요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "terms/예금거래기본약관.md#7",
+    "terms/예금거래기본약관.md#6",
+    "terms/예금거래기본약관.md#8",
+    "terms/예금거래기본약관.md#4",
+    "laws/전자금융거래법_법률.md#21"
+   ]
+  },
+  {
+   "id": "U01",
+   "question": "해외송금 수수료는 얼마예요?",
+   "answerable": "N",
+   "coverage": "",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#8",
+    "faq/착오송금반환FAQ.csv#3",
+    "faq/내금고FAQ.md#14",
+    "faq/내금고FAQ.md#12",
+    "terms/예금거래기본약관.md#19"
+   ]
+  },
+  {
+   "id": "U02",
+   "question": "삼성전자 주식 지금 사도 될까요?",
+   "answerable": "N",
+   "coverage": "",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/금융용어해설_기업은행.csv#16",
+    "faq/금융용어해설_기업은행.csv#19",
+    "faq/금융용어해설_기업은행.csv#25",
+    "faq/금융용어해설_기업은행.csv#27",
+    "faq/금융용어해설_기업은행.csv#32"
+   ]
+  },
+  {
+   "id": "U03",
+   "question": "자유적금 중도해지하면 이율이 몇 % 적용돼요?",
+   "answerable": "N",
+   "coverage": "",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0313,
+   "retrieved": [
+    "products/savingProductsSearch.json#28",
+    "products/savingProductsSearch.json#6",
+    "products/savingProductsSearch.json#57",
+    "products/savingProductsSearch.json#19",
+    "products/savingProductsSearch.json#18"
+   ]
+  },
+  {
+   "id": "U04",
+   "question": "오늘 달러 환율 알려줘",
+   "answerable": "N",
+   "coverage": "",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0164,
+   "retrieved": [
+    "faq/금융용어해설_기업은행.csv#11",
+    "laws/전자금융거래법_시행령.md#11",
+    "faq/금융용어해설_기업은행.csv#32",
+    "laws/전자금융거래법_법률.md#15",
+    "faq/금융용어해설_기업은행.csv#29"
+   ]
+  },
+  {
+   "id": "U05",
+   "question": "내금고 마이너스통장 한도는 얼마까지 돼요?",
+   "answerable": "N",
+   "coverage": "",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0323,
+   "retrieved": [
+    "faq/내금고FAQ.md#9",
+    "faq/내금고FAQ.md#0",
+    "faq/내금고FAQ.md#26",
+    "faq/내금고FAQ.md#22",
+    "faq/내금고FAQ.md#2"
+   ]
+  },
+  {
+   "id": "R01",
+   "question": "계좌이체를 잘 몰 힜을 때 어떻게하나요",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 5,
+   "evidence_hit": true,
+   "top_score": 0.0312,
+   "retrieved": [
+    "faq/내금고FAQ.md#30",
+    "faq/착오송금반환FAQ.csv#10",
+    "faq/내금고FAQ.md#15",
+    "faq/내금고FAQ.md#3",
+    "faq/내금고FAQ.md#12"
+   ]
+  },
+  {
+   "id": "R02",
+   "question": "입금을 제대로 했는데 돈이 들어오지 않았다고 하십니다",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 3,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "terms/예금거래기본약관.md#6",
+    "terms/예금거래기본약관.md#7",
+    "faq/내금고FAQ.md#14",
+    "terms/예금거래기본약관.md#8",
+    "faq/내금고FAQ.md#30"
+   ]
+  },
+  {
+   "id": "R03",
+   "question": "통장에 모르는 돈이 입금되었을땐 어떻게해야하나요??",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0323,
+   "retrieved": [
+    "faq/내금고FAQ.md#30",
+    "terms/예금거래기본약관.md#6",
+    "terms/예금거래기본약관.md#4",
+    "faq/내금고FAQ.md#7",
+    "terms/예금거래기본약관.md#8"
+   ]
+  },
+  {
+   "id": "R04",
+   "question": "모르는 사람이 계좌로 돈을 입금했는데?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.032,
+   "retrieved": [
+    "faq/내금고FAQ.md#30",
+    "faq/내금고FAQ.md#14",
+    "terms/예금거래기본약관.md#6",
+    "faq/내금고FAQ.md#12",
+    "faq/내금고FAQ.md#11"
+   ]
+  },
+  {
+   "id": "R05",
+   "question": "모르는 사람이 모임통장에 입금했는데 어떻게 해야 하나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": false,
+   "top_score": 0.0317,
+   "retrieved": [
+    "faq/내금고FAQ.md#25",
+    "terms/예금거래기본약관.md#6",
+    "terms/예금거래기본약관.md#4",
+    "terms/예금거래기본약관.md#8",
+    "terms/예금거래기본약관.md#7"
+   ]
+  },
+  {
+   "id": "R06",
+   "question": "돈을 잘못 입금하고 그 입금계좌를 신고하면 계좌사용 못하나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 5,
+   "evidence_hit": true,
+   "top_score": 0.0312,
+   "retrieved": [
+    "faq/내금고FAQ.md#30",
+    "faq/내금고FAQ.md#32",
+    "laws/전자금융거래법_법률.md#13",
+    "terms/예금거래기본약관.md#6",
+    "faq/내금고FAQ.md#12"
+   ]
+  },
+  {
+   "id": "R07",
+   "question": "계좌가 지급정지되었을 때 빠르게 푸는 방법(중고거래 입금)",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": false,
+   "top_score": 0.032,
+   "retrieved": [
+    "faq/내금고FAQ.md#32",
+    "faq/내금고FAQ.md#30",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#12",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#13",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#21"
+   ]
+  },
+  {
+   "id": "R08",
+   "question": "사기 가해자 계좌를 정지시킬 수 있나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0323,
+   "retrieved": [
+    "faq/내금고FAQ.md#30",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#12",
+    "faq/내금고FAQ.md#32",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#11",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#14"
+   ]
+  },
+  {
+   "id": "R09",
+   "question": "토토 환전 후 계좌정지(전기통신금융사기)",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0315,
+   "retrieved": [
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#12",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#28",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#37",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#20",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#14"
+   ]
+  },
+  {
+   "id": "R10",
+   "question": "보이스 피싱 당했을때 어떻게 대처해야나요",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#30",
+    "faq/내금고FAQ.md#31",
+    "faq/내금고FAQ.md#32",
+    "faq/착오송금반환FAQ.csv#5",
+    "faq/내금고FAQ.md#17"
+   ]
+  },
+  {
+   "id": "R11",
+   "question": "경찰, 검찰 사칭 보이스피싱 대응법, 확인법",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#30",
+    "faq/착오송금반환FAQ.csv#5",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#30",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#10",
+    "laws/전자금융거래법_법률.md#12"
+   ]
+  },
+  {
+   "id": "R12",
+   "question": "갑자기 인증번호 문자를 받았는데 대응방법이 어떻게될까요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#31",
+    "faq/내금고FAQ.md#27",
+    "faq/내금고FAQ.md#29",
+    "faq/착오송금반환FAQ.csv#10",
+    "faq/내금고FAQ.md#28"
+   ]
+  },
+  {
+   "id": "R13",
+   "question": "파킹 통장에서 발생한 이자에 대해서도 세금이 부과되는지요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 3,
+   "evidence_hit": true,
+   "top_score": 0.0323,
+   "retrieved": [
+    "faq/내금고FAQ.md#20",
+    "faq/내금고FAQ.md#22",
+    "faq/내금고FAQ.md#21",
+    "faq/금융용어해설_기업은행.csv#3",
+    "laws/금융실명거래및비밀보장에관한법률_법률.md#18"
+   ]
+  },
+  {
+   "id": "R14",
+   "question": "파킹통장의 하루 이자를 구하려면 어떻게 하나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#20",
+    "faq/내금고FAQ.md#22",
+    "faq/내금고FAQ.md#24",
+    "faq/내금고FAQ.md#5",
+    "terms/예금거래기본약관.md#9"
+   ]
+  },
+  {
+   "id": "R15",
+   "question": "파킹통장이 무엇인가요? 예금의 종류인가요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0318,
+   "retrieved": [
+    "faq/내금고FAQ.md#22",
+    "faq/내금고FAQ.md#20",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#0",
+    "faq/내금고FAQ.md#5"
+   ]
+  },
+  {
+   "id": "R16",
+   "question": "입출금 통장과 파킹 통장에 차이점이 뭔가요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.032,
+   "retrieved": [
+    "faq/내금고FAQ.md#20",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#0",
+    "faq/내금고FAQ.md#22",
+    "faq/내금고FAQ.md#5"
+   ]
+  },
+  {
+   "id": "R17",
+   "question": "인터넷은행도 시중은행처럼 안전한가요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0315,
+   "retrieved": [
+    "laws/전자금융거래법_법률.md#29",
+    "faq/내금고FAQ.md#15",
+    "laws/전자금융거래법_법률.md#0",
+    "laws/금융소비자보호에관한법률_시행령.md#89",
+    "faq/내금고FAQ.md#31"
+   ]
+  },
+  {
+   "id": "R18",
+   "question": "카카오뱅크나 토스도 예금자보호가 되나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 4,
+   "evidence_hit": false,
+   "top_score": 0.0297,
+   "retrieved": [
+    "products/savingProductsSearch.json#56",
+    "products/depositProductsSearch.json#37",
+    "faq/착오송금반환FAQ.csv#4",
+    "faq/내금고FAQ.md#26",
+    "products/savingProductsSearch.json#59"
+   ]
+  },
+  {
+   "id": "R19",
+   "question": "예금자보호법 한도 이자 포함인가요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0323,
+   "retrieved": [
+    "faq/내금고FAQ.md#26",
+    "faq/금융용어해설_기업은행.csv#10",
+    "laws/예금자보호법_법률.md#14",
+    "laws/예금자보호법_시행령.md#44",
+    "laws/예금자보호법_법률.md#0"
+   ]
+  },
+  {
+   "id": "R20",
+   "question": "은행 계좌를 오랫동안 안쓰면 사라지나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#7",
+    "terms/예금거래기본약관.md#14",
+    "terms/예금거래기본약관.md#7",
+    "terms/은행여신거래기본약관_가계용.md#14",
+    "terms/예금거래기본약관.md#10"
+   ]
+  },
+  {
+   "id": "R21",
+   "question": "20년전 통장 잔액확인 할 수 있나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0306,
+   "retrieved": [
+    "terms/예금거래기본약관.md#20",
+    "terms/예금거래기본약관.md#4",
+    "faq/내금고FAQ.md#2",
+    "terms/예금거래기본약관.md#15",
+    "faq/내금고FAQ.md#3"
+   ]
+  },
+  {
+   "id": "R22",
+   "question": "통장에 잔고가 0원이면 계좌가 없어질 수 있나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 2,
+   "evidence_hit": true,
+   "top_score": 0.0315,
+   "retrieved": [
+    "faq/내금고FAQ.md#5",
+    "terms/예금거래기본약관.md#10",
+    "faq/내금고FAQ.md#8",
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#1"
+   ]
+  },
+  {
+   "id": "R23",
+   "question": "본인의 모든 은행계좌에 있는 잔고를 조회하는 방법은 무엇인가요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#7",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#5",
+    "faq/내금고FAQ.md#30",
+    "faq/내금고FAQ.md#4"
+   ]
+  },
+  {
+   "id": "R24",
+   "question": "안쓰는 통장들 한번에 정리하는 방법?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#7",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#20",
+    "faq/내금고FAQ.md#5"
+   ]
+  },
+  {
+   "id": "R25",
+   "question": "거래정지계좌는 어떻게 풀어야 하나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 2,
+   "evidence_hit": true,
+   "top_score": 0.0323,
+   "retrieved": [
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#12",
+    "faq/내금고FAQ.md#32",
+    "faq/내금고FAQ.md#3",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#20",
+    "faq/내금고FAQ.md#30"
+   ]
+  },
+  {
+   "id": "R26",
+   "question": "분실로 정지한 카드 재사용 가능한가요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#18",
+    "faq/내금고FAQ.md#17",
+    "faq/내금고FAQ.md#30",
+    "faq/내금고FAQ.md#19",
+    "laws/전자금융거래법_법률.md#18"
+   ]
+  },
+  {
+   "id": "R27",
+   "question": "체크카드를 잃어버렸는데 인터넷으로 재발급은 불가한가요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0325,
+   "retrieved": [
+    "faq/내금고FAQ.md#17",
+    "faq/내금고FAQ.md#16",
+    "faq/내금고FAQ.md#18",
+    "terms/예금거래기본약관.md#15",
+    "laws/전자금융거래법_시행령.md#6"
+   ]
+  },
+  {
+   "id": "R28",
+   "question": "은행어플 비밀번호를 5회 틀렸다면?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#27",
+    "faq/내금고FAQ.md#28",
+    "terms/예금거래기본약관.md#5",
+    "terms/예금거래기본약관.md#14",
+    "faq/내금고FAQ.md#12"
+   ]
+  },
+  {
+   "id": "R29",
+   "question": "신한 계좌비밀번호를 5회이상틀려서 잠기면 출금도 안되나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#27",
+    "faq/내금고FAQ.md#28",
+    "terms/예금거래기본약관.md#5",
+    "faq/내금고FAQ.md#7",
+    "faq/내금고FAQ.md#9"
+   ]
+  },
+  {
+   "id": "R30",
+   "question": "번호이동하면 은행,주식 어플 비번 다 새로 등록해야하나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 5,
+   "evidence_hit": true,
+   "top_score": 0.0313,
+   "retrieved": [
+    "terms/예금거래기본약관.md#14",
+    "terms/예금거래기본약관.md#5",
+    "faq/내금고FAQ.md#31",
+    "laws/금융실명거래및비밀보장에관한법률_시행령.md#14",
+    "faq/내금고FAQ.md#29"
+   ]
+  },
+  {
+   "id": "R31",
+   "question": "통장 비밀번호 분실햇을 경우 대처하는 방법 좀 알려주세요~",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0323,
+   "retrieved": [
+    "terms/예금거래기본약관.md#14",
+    "faq/내금고FAQ.md#17",
+    "faq/내금고FAQ.md#28",
+    "terms/예금거래기본약관.md#5",
+    "faq/내금고FAQ.md#27"
+   ]
+  },
+  {
+   "id": "R32",
+   "question": "통장 20일 개설 제한이 생긴 이유는 무엇인가요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#3",
+    "terms/예금거래기본약관.md#19",
+    "products/savingProductsSearch.json#59"
+   ]
+  },
+  {
+   "id": "R33",
+   "question": "만14세는 계좌만드는게 불가능한가요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#0",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#3",
+    "faq/내금고FAQ.md#16"
+   ]
+  },
+  {
+   "id": "R34",
+   "question": "몇 세부터 통장을 부모 없이 가서 만들 수 있나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/내금고FAQ.md#0",
+    "faq/내금고FAQ.md#1",
+    "faq/내금고FAQ.md#2",
+    "faq/내금고FAQ.md#23",
+    "products/savingProductsSearch.json#54"
+   ]
+  },
+  {
+   "id": "R35",
+   "question": "여자친구랑 같이 공동명의 통장으로 돈 모으려고 하는데",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0323,
+   "retrieved": [
+    "faq/내금고FAQ.md#25",
+    "faq/내금고FAQ.md#1",
+    "products/savingProductsSearch.json#26",
+    "laws/금융실명거래및비밀보장에관한법률_시행령.md#11",
+    "faq/금융용어해설_기업은행.csv#25"
+   ]
+  },
+  {
+   "id": "R36",
+   "question": "국민은행 한도제한계좌 해제 방법에 대해",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": false,
+   "top_score": 0.0318,
+   "retrieved": [
+    "faq/내금고FAQ.md#3",
+    "products/savingProductsSearch.json#29",
+    "products/savingProductsSearch.json#32",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#9",
+    "products/rentHouseLoanProductsSearch.json#23"
+   ]
+  },
+  {
+   "id": "R37",
+   "question": "대출금을 하루 늦게갚으면 신용점수가 하락하나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0328,
+   "retrieved": [
+    "faq/금융용어해설_기업은행.csv#5",
+    "terms/은행여신거래기본약관_가계용.md#12",
+    "terms/은행여신거래기본약관_가계용.md#6",
+    "terms/은행여신거래기본약관_가계용.md#17",
+    "terms/은행여신거래기본약관_가계용.md#11"
+   ]
+  },
+  {
+   "id": "R38",
+   "question": "주택 담보대출 받은후 일부 상환 가능한가요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0315,
+   "retrieved": [
+    "products/mortgageLoanProductsSearch.json#14",
+    "products/mortgageLoanProductsSearch.json#6",
+    "products/mortgageLoanProductsSearch.json#22",
+    "products/mortgageLoanProductsSearch.json#4",
+    "products/mortgageLoanProductsSearch.json#32"
+   ]
+  },
+  {
+   "id": "R39",
+   "question": "신용대출 갈아탈때 중간에 갈아타면 위약금같은게 있나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 2,
+   "evidence_hit": true,
+   "top_score": 0.032,
+   "retrieved": [
+    "terms/은행여신거래기본약관_가계용.md#7",
+    "terms/은행여신거래기본약관_가계용.md#17",
+    "faq/금융용어해설_기업은행.csv#21",
+    "products/rentHouseLoanProductsSearch.json#32",
+    "laws/금융소비자보호에관한법률_법률.md#7"
+   ]
+  },
+  {
+   "id": "R40",
+   "question": "대출계약 철회 시 불이익이 있나요?",
+   "answerable": "Y",
+   "coverage": "full",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0328,
+   "retrieved": [
+    "terms/은행여신거래기본약관_가계용.md#7",
+    "laws/금융소비자보호에관한법률_시행령.md#76",
+    "laws/금융소비자보호에관한법률_법률.md#66",
+    "laws/금융소비자보호에관한법률_법률.md#67",
+    "laws/금융소비자보호에관한법률_법률.md#68"
+   ]
+  },
+  {
+   "id": "R41",
+   "question": "청약철회 기간 이후에도 취소가 가능한가요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": false,
+   "top_score": 0.0318,
+   "retrieved": [
+    "laws/금융소비자보호에관한법률_법률.md#67",
+    "laws/금융소비자보호에관한법률_법률.md#69",
+    "laws/금융소비자보호에관한법률_법률.md#68",
+    "laws/금융소비자보호에관한법률_법률.md#66",
+    "faq/내금고FAQ.md#6"
+   ]
+  },
+  {
+   "id": "R42",
+   "question": "통장 또는 체크 카드를 타인에게 양도 했을경우 처벌을 받는가요.",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": null,
+   "evidence_hit": false,
+   "top_score": 0.0298,
+   "retrieved": [
+    "laws/전자금융거래법_법률.md#26",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#39",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#42",
+    "laws/전자금융거래법_법률.md#13",
+    "faq/내금고FAQ.md#16"
+   ]
+  },
+  {
+   "id": "R43",
+   "question": "가족간에 통장대여 처벌 어떻게되나요??",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0308,
+   "retrieved": [
+    "laws/전자금융거래법_법률.md#10",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#42",
+    "laws/전기통신금융사기피해방지및피해금환급에관한특별법_법률.md#39",
+    "laws/금융실명거래및비밀보장에관한법률_법률.md#8",
+    "laws/전자금융거래법_법률.md#13"
+   ]
+  },
+  {
+   "id": "R44",
+   "question": "타인에게 합의하에 통장이나 카드를 빌려주어도 되나요?",
+   "answerable": "Y",
+   "coverage": "partial",
+   "rank": 1,
+   "evidence_hit": true,
+   "top_score": 0.0298,
+   "retrieved": [
+    "laws/금융실명거래및비밀보장에관한법률_법률.md#4",
+    "laws/전자금융거래법_법률.md#47",
+    "terms/예금거래기본약관.md#15",
+    "laws/금융실명거래및비밀보장에관한법률_법률.md#8",
+    "laws/전자금융거래법_법률.md#10"
+   ]
+  }
+ ]
+}
