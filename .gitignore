@@ -1,0 +1,29 @@
+# 비밀 값
+.env
+.env.docker
+**/.env
+
+# 의존성·빌드 결과물
+node_modules/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+
+# RAG 생성물 (다시 만들 수 있음)
+data/rag/index/
+rag-agent-practice/chroma_db/
+rag-agent-practice/emb_cache/
+rag-agent-practice/ocr_cache/
+
+# 타입스크립트 빌드 캐시
+*.tsbuildinfo
+
+# Claude Code 개인 설정
+.claude/settings.local.json
+
+# 타사 저작물 참고 자료 (RAG에 넣지 않음, README만 올림)
+data/rag/reference/*/
+
+# impeccable 훅 캐시
+.impeccable/hook.cache.json

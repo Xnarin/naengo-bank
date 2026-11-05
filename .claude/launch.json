@@ -1,0 +1,8 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    { "name": "bank", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5173", "--strictPort"], "port": 5173 },
+    { "name": "bank-agent", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "--", "--port", "5181", "--strictPort"], "port": 5181, "env": { "VITE_CHAT_API_URL": "/agent" } },
+    { "name": "agent-api", "runtimeExecutable": "uv", "runtimeArgs": ["run", "--directory", "backend", "uvicorn", "app.main:app", "--port", "8000", "--env-file", "C:/Users/김나린/AppData/Local/Temp/claude/e33cdf473bc22c8c/943fe563-8b23-4015-94c9-d50c2136f794/scratchpad/backend-preview.env"], "port": 8000 }
+  ]
+}
