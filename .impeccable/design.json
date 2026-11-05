@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-05T08:17:20.434029+00:00",
+  "title": "Design System: 내금고",
+  "extensions": {
+    "colorMeta": {
+      "violet": {
+        "role": "primary",
+        "displayName": "Violet",
+        "canonical": "#5b4bdb",
+        "tonalRamp": [
+          "#181439",
+          "#251e62",
+          "#31258e",
+          "#3b2ac6",
+          "#685ad8",
+          "#9d95e0",
+          "#cac6eb",
+          "#eeedf8"
+        ]
+      },
+      "midnight-ink": {
+        "role": "secondary",
+        "displayName": "Midnight Ink",
+        "canonical": "#1c1a2e",
+        "tonalRamp": [
+          "#201f2e",
+          "#34324e",
+          "#48436f",
+          "#5e5798",
+          "#847fb3",
+          "#aeabca",
+          "#d3d1e0",
+          "#f0f0f5"
+        ]
+      },
+      "drawer-1": {
+        "role": "tertiary",
+        "displayName": "Drawer Lavender",
+        "canonical": "#efedfc",
+        "tonalRamp": [
+          "#18133a",
+          "#251b64",
+          "#302191",
+          "#3b24cb",
+          "#6856dc",
+          "#9d92e2",
+          "#cac5ec",
+          "#eeecf8"
+        ]
+      },
+      "drawer-2": {
+        "role": "tertiary",
+        "displayName": "Drawer Mist",
+        "canonical": "#f2f1f6",
+        "tonalRamp": [
+          "#23202c",
+          "#39354b",
+          "#4f486a",
+          "#695e91",
+          "#8d85ad",
+          "#b3aec6",
+          "#d5d3df",
+          "#f1f0f4"
+        ]
+      },
+      "drawer-3": {
+        "role": "tertiary",
+        "displayName": "Drawer Blush",
+        "canonical": "#f9eff3",
+        "tonalRamp": [
+          "#331a24",
+          "#57293b",
+          "#7d3652",
+          "#ad436d",
+          "#c46e90",
+          "#d4a1b5",
+          "#e5ccd6",
+          "#f6eff2"
+        ]
+      },
+      "drawer-4": {
+        "role": "tertiary",
+        "displayName": "Drawer Ice",
+        "canonical": "#ecf3f8",
+        "tonalRamp": [
+          "#1a2833",
+          "#284457",
+          "#355f7d",
+          "#4281ae",
+          "#6ea0c4",
+          "#a0bed4",
+          "#ccdbe5",
+          "#eef3f6"
+        ]
+      },
+      "dusk-gray": {
+        "role": "neutral",
+        "displayName": "Dusk Gray",
+        "canonical": "#5c5a6e",
+        "tonalRamp": [
+          "#242329",
+          "#3c3b45",
+          "#535161",
+          "#6e6c84",
+          "#9190a2",
+          "#b6b5c0",
+          "#d7d6dc",
+          "#f2f1f3"
+        ]
+      },
+      "money-green": {
+        "role": "status",
+        "displayName": "Money Green",
+        "canonical": "#15803d",
+        "tonalRamp": [
+          "#123a21",
+          "#1b6437",
+          "#21924b",
+          "#24cc63",
+          "#56dc88",
+          "#92e2b0",
+          "#c5edd4",
+          "#ecf8f1"
+        ]
+      },
+      "error-red": {
+        "role": "status",
+        "displayName": "Error Red",
+        "canonical": "#c8283a",
+        "tonalRamp": [
+          "#391418",
+          "#621e25",
+          "#8e2531",
+          "#c62a3b",
+          "#d85a69",
+          "#e0959d",
+          "#ebc6cb",
+          "#f8edee"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "amount-hero": {
+        "displayName": "Amount Hero",
+        "purpose": "잔액·합계. Sora 700, 화면에서 가장 큰 글자."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "단계 질문, 완료 메시지."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "목록 행, 말풍선, 버튼."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "입력 라벨, 날짜 그룹, 보조 정보."
+      }
+    },
+    "shadows": [
+      {
+        "name": "card-object",
+        "value": "0 10px 30px rgba(14,30,74,0.18)",
+        "purpose": "체크카드 이미지 전용."
+      },
+      {
+        "name": "app-frame",
+        "value": "0 0 40px rgba(14,30,74,0.08)",
+        "purpose": "데스크톱에서 앱 폭 경계."
+      }
+    ],
+    "motion": [
+      {
+        "name": "rise",
+        "value": "250ms ease-out (opacity 0→1, translateY 8px→0)",
+        "purpose": "새 메시지, 시트, 완료 화면 등장."
+      },
+      {
+        "name": "color-transition",
+        "value": "150ms",
+        "purpose": "버튼·칩 hover와 선택 상태."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "app-max",
+        "value": "430px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "화면의 주요 실행 하나.",
+      "html": "<button class=\"ds-btn-primary\">송금</button>",
+      "css": ".ds-btn-primary{font-family:'Wanted Sans Variable',system-ui,sans-serif;background:#5b4bdb;color:#fff;height:44px;padding:0 16px;border:0;border-radius:9999px;font-size:15px;font-weight:600;cursor:pointer;transition:background .15s}.ds-btn-primary:hover,.ds-btn-primary:active{background:#4636c4}.ds-btn-primary:focus-visible{outline:2px solid #5b4bdb;outline-offset:2px}.ds-btn-primary:disabled{background:#1c1a2e;opacity:.35;color:#fff;cursor:not-allowed}"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "행 안의 보조 이동(거래내역, 사용내역 보기).",
+      "html": "<button class=\"ds-btn-outline\">거래내역</button>",
+      "css": ".ds-btn-outline{font-family:'Wanted Sans Variable',system-ui,sans-serif;background:#ffffff;color:#1c1a2e;height:36px;padding:0 12px;border:1px solid #e8e6f0;border-radius:9999px;font-size:14px;font-weight:600;cursor:pointer;transition:background .15s}.ds-btn-outline:hover{background:#f5f4f9}.ds-btn-outline:focus-visible{outline:2px solid #5b4bdb;outline-offset:2px}"
+    },
+    {
+      "name": "Text Field",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "라벨은 위, 오류 문구는 아래.",
+      "html": "<label class=\"ds-field\"><span>이메일</span><input placeholder=\"example@email.com\"></label>",
+      "css": ".ds-field{font-family:'Wanted Sans Variable',system-ui,sans-serif;display:block}.ds-field span{display:block;margin-bottom:8px;font-size:13px;font-weight:500;color:#5c5a6e}.ds-field input{font-family:'Wanted Sans Variable',system-ui,sans-serif;box-sizing:border-box;width:100%;height:52px;padding:0 16px;border:1px solid #e8e6f0;border-radius:12px;font-size:16px;color:#1c1a2e;outline:none;caret-color:#5b4bdb;transition:border-color .15s}.ds-field input::placeholder{color:#5c5a6e}.ds-field input:focus{border-color:#5b4bdb}"
+    },
+    {
+      "name": "Drawer (open)",
+      "kind": "custom",
+      "refersTo": "drawer-tile",
+      "description": "서랍 스택에서 열린 서랍 하나.",
+      "html": "<div class=\"ds-acc\"><div class=\"ds-acc-name\">입출금통장 ›</div><div class=\"ds-acc-no\">110-482-305917</div><div class=\"ds-acc-row\"><b>1,284,500원</b><span><button class=\"ds-acc-o\">거래내역</button><button class=\"ds-acc-p\">송금</button></span></div></div>",
+      "css": ".ds-acc{font-family:'Wanted Sans Variable',system-ui,sans-serif;background:#efedfc;border-radius:22px;padding:16px;color:#1c1a2e;max-width:340px}.ds-acc-name{font-size:15px;font-weight:600}.ds-acc-no{font-size:12px;color:rgba(28,26,46,.65);font-variant-numeric:tabular-nums}.ds-acc-row{display:flex;flex-direction:column;gap:12px;margin-top:24px}.ds-acc-row b{font-family:Sora,sans-serif;font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}.ds-acc-row span{display:flex;gap:6px}.ds-acc-o,.ds-acc-p{font-family:'Wanted Sans Variable',system-ui,sans-serif;flex:1;height:32px;padding:0 8px;border-radius:9999px;font-size:13px;font-weight:600;cursor:pointer}.ds-acc-o{background:rgba(255,255,255,.7);border:0;color:#1c1a2e}.ds-acc-o:hover{background:#ffffff}.ds-acc-p{background:#5b4bdb;border:0;color:#fff}.ds-acc-p:hover{background:#4636c4}.ds-acc-o:focus-visible,.ds-acc-p:focus-visible{outline:2px solid #5b4bdb;outline-offset:2px}"
+    },
+    {
+      "name": "Suggestion Chip",
+      "kind": "chip",
+      "refersTo": "chip-suggestion",
+      "description": "챗봇 추천 질문과 선택지.",
+      "html": "<button class=\"ds-chip\">내 계좌 잔액 알려줘</button>",
+      "css": ".ds-chip{font-family:'Wanted Sans Variable',system-ui,sans-serif;background:#ffffff;color:#5b4bdb;border:1px solid rgba(91,75,219,.3);border-radius:9999px;padding:8px 14px;font-size:14px;font-weight:500;cursor:pointer;transition:background .15s}.ds-chip:hover{background:#edf2ff}.ds-chip:focus-visible{outline:2px solid #5b4bdb;outline-offset:2px}"
+    },
+    {
+      "name": "Bottom Tab Bar",
+      "kind": "nav",
+      "refersTo": "",
+      "description": "홈 / 상품 / 카드 / AI.",
+      "html": "<nav class=\"ds-tabs\"><a class=\"on\">홈</a><a>상품</a><a>카드</a><a>AI</a></nav>",
+      "css": ".ds-tabs{font-family:'Wanted Sans Variable',system-ui,sans-serif;display:grid;grid-template-columns:repeat(4,1fr);height:64px;border-top:1px solid #e8e6f0;background:#ffffff}.ds-tabs a{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:#5c5a6e;cursor:pointer}.ds-tabs a.on{color:#5b4bdb;font-weight:700}.ds-tabs a:hover{color:#1c1a2e}"
+    }
+  ],
+  "narrative": {
+    "northStar": "서랍이 있는 금고",
+    "overview": "내금고(naengo)는 \"나만 여는 금고\"다. 계좌 하나하나는 금고의 서랍이고, 서랍마다 고유한 색이 있다. 홈에서는 서랍들이 겹쳐 쌓여 있고, 누른 서랍 하나만 스르륵 열려 잔액과 버튼을 보여 준다. 어느 돈이 어디 있는지 색만 보고도 안다. 연한 서랍 색이 순서대로 붙고, 그 서랍의 상세 화면도 같은 색 머리를 단다.\n\n바탕은 흰색, 강조는 차분한 바이올렛 하나, 글자는 밤하늘색 잉크, 서랍은 아주 연한 파스텔이다. 색은 절제하고, 개성은 서랍 구조와 서체(원티드 산스 + Sora)에서 나온다. 강조색은 프로필의 색 테마로 바꿀 수 있다.\n\n밀도는 은행 앱답게 촘촘하되 서랍 타일은 넉넉하게. 장식은 서랍 색과 체크카드에만 쓰고, 목록·폼·확인 화면은 흰 위에 얇은 선으로 차분하게 정리한다.",
+    "keyCharacteristics": [
+      "흰 바탕, 바이올렛 강조, 밤하늘색 잉크 글자. 색 테마로 모노·틸·코랄 전환.",
+      "계좌 = 색 서랍. 가로로 긴 서랍이 겹쳐 쌓이고, 한 번에 하나만 열린다.",
+      "주요 버튼은 강조색 바탕 + 흰 글자의 알약형.",
+      "입금과 완료는 리프 그린, 출금은 미드나잇 잉크 그대로.",
+      "금액 숫자와 제목은 Sora, 한글은 원티드 산스. Pretendard는 쓰지 않는다."
+    ],
+    "rules": [
+      {
+        "name": "The One Accent Rule",
+        "body": "강조색은 테마의 `--color-brand` 하나다. 컴포넌트에 색 hex를 직접 쓰지 않고 토큰만 쓴다(체크카드의 샌드 테마와 금색 칩만 예외). 보라에 핑크·파랑 그라데이션을 섞은 \"AI 보라\"는 쓰지 않는다.",
+        "section": "colors"
+      },
+      {
+        "name": "The Key Button Rule",
+        "body": "채운 강조 버튼은 화면의 주요 실행(또는 서랍마다의 \"송금\")에만 쓴다. 나머지는 미스트 면이나 테두리 버튼이다.",
+        "section": "colors"
+      },
+      {
+        "name": "The Drawer Color Rule",
+        "body": "서랍 색은 계좌 순서로 정해지고 화면이 바뀌어도 같다. 연한 서랍 색은 면(홈 서랍, 계좌 상세 머리, 송금의 출금 계좌 아이콘)에, 같은 순서의 진한 표시색은 목록 막대에 쓴다.",
+        "section": "colors"
+      },
+      {
+        "name": "The Readable Gray Rule",
+        "body": "읽어야 하는 글자는 Dusk Gray 이상(흰 바탕 대비 6.5:1). Faded Dusk는 글자에 쓰지 않는다.",
+        "section": "colors"
+      },
+      {
+        "name": "The Tabular Money Rule",
+        "body": "금액과 계좌번호는 항상 `.num`(tabular-nums, -0.02em). 20px 이상 금액은 Sora, 그보다 작은 금액과 계좌번호는 원티드 산스. 금액은 천 단위 쉼표와 \"원\"을 붙인다.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "Sora는 금액과 제목(h1·h2)에만 쓴다. 버튼, 라벨, 입력, 목록 본문은 원티드 산스.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Eyebrow Rule",
+        "body": "제목 위에 작은 라벨이나 태그를 얹지 않는다. 상품 태그는 제목 오른쪽에 붙인다.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat Drawer Rule",
+        "body": "서랍, 목록, 버튼, 입력에는 그림자를 쓰지 않는다. 색 면 자체가 구분이다.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** 계좌를 겹쳐 쌓인 색 서랍으로 보여 주고, 같은 계좌는 모든 화면에서 같은 서랍 색을 쓴다.",
+      "**Do** 주요 실행은 강조색 + 흰 글자 알약 버튼 하나로.",
+      "**Do** 금액을 화면에서 가장 큰 글자로, tabular 숫자와 \"원\"으로 쓴다.",
+      "**Do** 입금과 완료는 Money Green, 출금은 미드나잇 잉크으로 구분한다.",
+      "**Do** 예시 금리와 가상 데이터는 목록 끝 각주나 메타 줄의 \"예시 금리\" 같은 조용한 문구로 밝힌다. 색 배지로 강조하지 않는다.",
+      "**Do** 로딩은 스켈레톤, 실패는 원인과 다시 시도 버튼, 빈 상태는 다음 행동 문구로."
+    ],
+    "donts": [
+      "**Don't** 쨍한 원색이나 두 번째 강조색을 들이지 않는다. 파란색 계열도 쓰지 않는다.",
+      "**Don't** Pretendard 등 흔한 기본 서체로 되돌리지 않는다. 명조 계열은 예스러워 보여서 쓰지 않는다.",
+      "**Don't** 서랍 색을 경고·성공 같은 상태 의미로 쓰지 않는다.",
+      "**Don't** 계좌를 같은 크기 박스 타일 격자로 늘어놓지 않는다. 목록 항목을 테두리 카드로 감싸지 않는다(장부 행 사용). 라벨–값 상자로 이미 보이는 정보를 반복하지 않는다. 목록 행에 아이콘 원을 붙이지 않는다. 세그먼트 토글 대신 글자 정렬 버튼을 쓴다. 짙은 대형 요약 카드, 아이콘 타일, 제목 위 eyebrow 라벨도 쓰지 않는다.",
+      "**Don't** AI 기능에 반짝이(✨) 아이콘을 쓰지 않는다.",
+      "**Don't** 실존 은행의 이름, 로고, 카드 디자인을 가져오지 않는다."
+    ]
+  }
+}

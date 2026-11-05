@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Wanted Sans Variable", "Wanted Sans", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-display: "Sora", "Wanted Sans Variable", "Wanted Sans", sans-serif;
+  --color-paper: #ffffff;
+  /* 기본 테마: 바이올렛 */
+  --color-navy: #1c1a2e;
+  --color-navy-2: #2e2b48;
+  --color-brand: #5b4bdb;
+  --color-brand-dark: #4636c4;
+  --color-brand-soft: #eeecfb;
+  --color-drawer-1: #efedfc;
+  --color-drawer-2: #f2f1f6;
+  --color-drawer-3: #f9eff3;
+  --color-drawer-4: #ecf3f8;
+  --color-mark-1: #5b4bdb;
+  --color-mark-2: #8a879c;
+  --color-mark-3: #c0708f;
+  --color-mark-4: #5c8fb3;
+  --color-ink: #1c1a2e;
+  --color-sub: #5c5a6e;
+  --color-mute: #a3a1b3;
+  --color-line: #e8e6f0;
+  --color-surface: #f5f4f9;
+  --color-danger: #c8283a;
+  --color-danger-soft: #fbe9e7;
+  --color-success: #15803d;
+  --color-success-soft: #eaf6ee;
+  --color-backdrop: #e9e7f1;
+  --color-selection: #dcd8f8;
+}
+
+html, body { background: var(--color-backdrop); color: var(--color-ink); -webkit-font-smoothing: antialiased; }
+body { word-break: keep-all; letter-spacing: -0.01em; caret-color: var(--color-brand); }
+::selection { background: var(--color-selection); color: var(--color-navy); }
+:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+input:focus-visible { outline: none; }
+.num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+h1, h2, .font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+details > summary { list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details[open] .chev { transform: rotate(180deg); }
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.rise { animation: rise .25s ease-out both; }
+@keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.shake { animation: shake .3s ease-in-out; }
+@media (prefers-reduced-motion: reduce) { .shake { animation: none; } }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+.dot { animation: blink 1.2s infinite both; }
+.dot:nth-child(2) { animation-delay: .2s; }
+.dot:nth-child(3) { animation-delay: .4s; }
+
+/* 색 테마 (프로필 > 색 테마). 기본값은 @theme의 바이올렛. */
+:root[data-theme="teal"] {
+  --color-navy: #1a1f1e; --color-navy-2: #2b3230;
+  --color-brand: #0f766e; --color-brand-dark: #115e59; --color-brand-soft: #e6f3f1;
+  --color-drawer-1: #e3f2ef; --color-drawer-2: #eef0f2; --color-drawer-3: #f3efe9; --color-drawer-4: #eceef8;
+  --color-mark-1: #0f766e; --color-mark-2: #7d8a8e; --color-mark-3: #a88e6e; --color-mark-4: #6e78b8;
+  --color-ink: #1a1f1e; --color-sub: #5b6563; --color-line: #e5e9e8; --color-surface: #f4f6f6;
+  --color-success: #0f766e; --color-success-soft: #e6f3f1; --color-backdrop: #e9eeed; --color-selection: #cfe9e4;
+}
+:root[data-theme="mono"] {
+  --color-navy: #18181b; --color-navy-2: #3f3f46;
+  --color-brand: #18181b; --color-brand-dark: #000000; --color-brand-soft: #f1f1f3;
+  --color-drawer-1: #f4f4f5; --color-drawer-2: #ebebee; --color-drawer-3: #f5f2ed; --color-drawer-4: #eef1f4;
+  --color-mark-1: #18181b; --color-mark-2: #71717a; --color-mark-3: #a8906f; --color-mark-4: #6b7f95;
+  --color-ink: #18181b; --color-sub: #52525b; --color-mute: #a1a1aa; --color-line: #e7e7ea; --color-surface: #f4f4f5;
+  --color-backdrop: #e7e7ea; --color-selection: #e4e4e7;
+}
+:root[data-theme="coral"] {
+  --color-navy: #22201e; --color-navy-2: #3a3633;
+  --color-brand: #c2410c; --color-brand-dark: #9a3412; --color-brand-soft: #fdeee8;
+  --color-drawer-1: #fdf0ea; --color-drawer-2: #f4f2ef; --color-drawer-3: #eef4f1; --color-drawer-4: #f3f0f8;
+  --color-mark-1: #c2410c; --color-mark-2: #8a827b; --color-mark-3: #4f8a72; --color-mark-4: #7d6fb0;
+  --color-ink: #22201e; --color-sub: #5f5953; --color-line: #ebe7e3; --color-surface: #f6f4f2;
+  --color-success: #15803d; --color-success-soft: #eaf6ee; --color-backdrop: #ece8e4; --color-selection: #fbd9c9;
+}
