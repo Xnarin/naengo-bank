@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { Toast } from './components/ui';
 import { useBank } from './store';
@@ -14,8 +15,18 @@ import { Notifications } from './pages/Notifications';
 import { AutoTransfers, NewAutoTransfer } from './pages/AutoTransfers';
 
 function RequireAuth() {
-  const { user } = useBank();
+  const { user, loading, loadError, refresh, logout } = useBank();
   const loc = useLocation();
+  const refreshRef = useRef(refresh); refreshRef.current = refresh;
+  useEffect(() => { void refreshRef.current(true); }, [loc.key]);
+  if (!user && loading) return <p role="status" className="px-5 py-20 text-center text-sub">계좌 정보를 불러오고 있어요.</p>;
+  if (!user && loadError) return (
+    <div className="space-y-4 px-5 py-20 text-center">
+      <p role="alert" className="text-danger">{loadError}</p>
+      <button onClick={() => void refresh()} className="rounded-full bg-brand px-5 py-3 font-semibold text-white">다시 시도</button>
+      <button onClick={logout} className="block w-full text-sub underline">로그인 화면으로</button>
+    </div>
+  );
   return user ? <Outlet /> : <Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />;
 }
 

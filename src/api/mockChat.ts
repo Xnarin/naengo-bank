@@ -215,7 +215,7 @@ function transferFlow(t: string, ctx: ChatContext, s: BankSnapshot, start: boole
     });
   }
   if (!d.toNumber || !d.toName) {
-    return ask('to', text('누구에게 보낼까요? 받는 분 이름과 계좌번호를 알려 주세요. (예: 홍길동, 123-456-789012)'), {
+    return ask('to', text('누구에게 보낼까요? 받는 분 이름과 계좌번호를 알려 주세요. (예: 홍길동, 123-4567-8901)'), {
       kind: 'choices', options: s.recipients.slice(0, 3).map((r) => ({ label: `${r.name} · ${maskAccount(r.number)}`, value: `${r.name}, ${r.number}` })),
     });
   }

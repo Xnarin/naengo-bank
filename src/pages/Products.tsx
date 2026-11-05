@@ -1,11 +1,13 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { BadgeCheck, ChevronDown, CircleAlert, Copy, PackageX } from 'lucide-react';
 import { RateText, shortName } from '../components/bank';
-import { Button, Checkbox, EmptyState, ErrorState, ListSkeleton, Page, Row, Sheet, Steps } from '../components/ui';
+import { Button, Checkbox, EmptyState, ErrorState, ListSkeleton, Page, Row, Sheet, Steps, Field } from '../components/ui';
 import { productById, products, type Account } from '../data/mock';
 import { cn } from '../lib/format';
 import { useBank, useLoad } from '../store';
+import { api } from '../api/http';
+import type { Term } from '../api/bank';
 
 // ── 목록 ───────────────────────────────────────────────
 export function ProductList() {
@@ -122,13 +124,6 @@ function Accordion({ title, children }: { title: string; children: ReactNode }) 
 }
 
 // ── 계좌 개설 ───────────────────────────────────────────
-const TERMS = [
-  { id: 't1', label: '[필수] 예금거래기본약관', required: true },
-  { id: 't2', label: '[필수] 입출금이 자유로운 예금 약관', required: true },
-  { id: 't3', label: '[필수] 개인(신용)정보 수집·이용 동의', required: true },
-  { id: 't4', label: '[선택] 상품 및 이벤트 안내 수신 동의', required: false },
-];
-
 export function OpenAccount() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -136,112 +131,67 @@ export function OpenAccount() {
   const p = productById(id ?? '');
   const [step, setStep] = useState(0);
   const [checked, setChecked] = useState<boolean[]>([]);
-  const [agreed, setAgreed] = useState<Record<string, boolean>>({});
-  const [viewing, setViewing] = useState<string | null>(null);
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [agreed, setAgreed] = useState<Record<number, boolean>>({});
+  const [viewing, setViewing] = useState<Term | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [created, setCreated] = useState<Account | null>(null);
-
+  const [form, setForm] = useState({ password: '', confirm: '', purpose: '' });
+  const loadTerms = () => api<Term[]>('/terms?category=ACCOUNT_OPEN').then((data) => { setTerms(data); setError(''); }).catch((e) => setError((e as Error).message));
+  useEffect(() => { void loadTerms(); }, []);
   if (!p) return <Page back title="계좌 개설"><EmptyState icon={PackageX} title="상품을 찾을 수 없어요" /></Page>;
-
-  const allConditions = p.conditions.every((_, i) => checked[i]);
-  const requiredAgreed = TERMS.filter((t) => t.required).every((t) => agreed[t.id]);
-  const allAgreed = TERMS.every((t) => agreed[t.id]);
-
+  const requiredAgreed = terms.length > 0 && terms.every((t) => !t.required || agreed[t.id]);
+  const allAgreed = terms.length > 0 && terms.every((t) => agreed[t.id]);
+  const valid = /^[0-9]{4}$/.test(form.password) && form.password === form.confirm && !!form.purpose.trim();
   async function submit() {
-    setLoading(true);
-    setError('');
-    try { setCreated(await openAccount(p!.id)); }
+    setLoading(true); setError('');
+    try { setCreated(await openAccount(p!.id, { password: form.password, passwordConfirm: form.confirm, purpose: form.purpose.trim(), agreedTermIds: terms.filter((t) => agreed[t.id]).map((t) => t.id) })); }
     catch (e) { setError((e as Error).message); }
     finally { setLoading(false); }
   }
-
-  if (created) {
-    return (
-      <Page footer={
-        <div className="grid grid-cols-2 gap-2">
-          <Button size="lg" variant="secondary" onClick={() => navigate('/', { replace: true })}>홈으로</Button>
-          <Button size="lg" onClick={() => navigate(`/accounts/${created.id}`, { replace: true })}>내 계좌 보기</Button>
-        </div>
-      }>
-        <div className="rise flex flex-col items-center pt-28 text-center">
-          <span className="grid size-16 place-items-center rounded-full bg-brand text-white"><BadgeCheck className="size-8" /></span>
-          <p className="mt-6 font-display text-[22px] font-bold">계좌가 개설됐어요</p>
-          <p className="mt-1 text-[15px] text-sub">{created.name}</p>
-          <button onClick={() => navigator.clipboard?.writeText(created.number).then(() => toast('계좌번호가 복사됐어요'), () => {})}
-            className="num mt-6 inline-flex items-center gap-2 rounded-2xl bg-surface px-5 py-4 font-display text-[20px] font-bold" aria-label="새 계좌번호 복사">
-            내금고 {created.number}<Copy className="size-4 text-sub" />
-          </button>
-          <p className="mt-4 text-[13px] text-sub">프로젝트 내 가상 계좌예요.</p>
-        </div>
-      </Page>
-    );
-  }
-
+  if (created) return (
+    <Page footer={<div className="grid grid-cols-2 gap-2"><Button variant="secondary" size="lg" onClick={() => navigate('/', { replace: true })}>홈으로</Button><Button size="lg" onClick={() => navigate(`/accounts/${created.id}`, { replace: true })}>내 계좌 보기</Button></div>}>
+      <div className="rise flex flex-col items-center pt-28 text-center">
+        <span className="grid size-16 place-items-center rounded-full bg-brand text-white"><BadgeCheck className="size-8" /></span>
+        <h2 className="mt-6 font-display text-[22px] font-bold">계좌가 개설됐어요</h2>
+        <p className="mt-1 text-sub">{created.name}</p>
+        <button onClick={() => navigator.clipboard?.writeText(created.number).then(() => toast('계좌번호가 복사됐어요'))} className="num mt-6 inline-flex items-center gap-2 rounded-2xl bg-surface px-5 py-4 text-[20px]">{created.number}<Copy className="size-4" /></button>
+        <p className="mt-4 text-[13px] text-sub">프로젝트 내 가상 계좌예요.</p>
+      </div>
+    </Page>
+  );
   const footer = [
-    <Button size="lg" full disabled={!allConditions} onClick={() => setStep(1)}>다음</Button>,
-    <Button size="lg" full disabled={!requiredAgreed} onClick={() => setStep(2)}>동의하고 계속</Button>,
-    <Button size="lg" full loading={loading} onClick={submit}>계좌 개설하기</Button>,
+    <Button full size="lg" disabled={!p.conditions.every((_, i) => checked[i])} onClick={() => setStep(1)}>다음</Button>,
+    <Button full size="lg" disabled={!requiredAgreed} onClick={() => setStep(2)}>동의하고 계속</Button>,
+    <Button full size="lg" loading={loading} disabled={!valid} onClick={submit}>계좌 개설하기</Button>,
   ][step];
-
   return (
-    <Page back={step > 0 ? () => setStep(step - 1) : true} title="계좌 개설" footer={footer}>
+    <Page back={step ? () => setStep(step - 1) : true} title="계좌 개설" footer={footer}>
       <Steps steps={['상품 확인', '약관 동의', '최종 확인']} current={step} />
-
-      {step === 0 && (
-        <>
-          <div className="rounded-2xl bg-surface p-5">
-            <p className="text-[18px] font-bold">{p.name}</p>
-            <p className="text-[14px] text-sub">{p.tagline}</p>
-            <div className="mt-3"><RateText p={p} /></div>
-          </div>
-          <h2 className="mt-8 mb-2 text-[17px] font-bold">가입 조건을 확인해 주세요</h2>
-          {p.conditions.map((c, i) => (
-            <Checkbox key={c} checked={!!checked[i]} onChange={(v) => setChecked((s) => { const n = [...s]; n[i] = v; return n; })}>{c}</Checkbox>
-          ))}
-          <p className="mt-3 text-[12px] text-sub">가입 조건은 예시 데이터이며, 프로토타입에서는 본인 확인을 생략해요.</p>
-        </>
-      )}
-
-      {step === 1 && (
-        <>
-          <h2 className="mb-4 font-display text-[22px] font-bold">약관에 동의해 주세요</h2>
-          <div className="rounded-2xl bg-surface px-4 py-2">
-            <Checkbox strong checked={allAgreed} onChange={(v) => setAgreed(Object.fromEntries(TERMS.map((t) => [t.id, v])))}>전체 동의</Checkbox>
-          </div>
-          <div className="mt-2 px-4">
-            {TERMS.map((t) => (
-              <div key={t.id} className="flex items-center">
-                <div className="flex-1"><Checkbox checked={!!agreed[t.id]} onChange={(v) => setAgreed({ ...agreed, [t.id]: v })}>{t.label}</Checkbox></div>
-                <button onClick={() => setViewing(t.label)} className="px-2 text-[13px] text-sub underline">보기</button>
-              </div>
-            ))}
-          </div>
-          <Sheet open={!!viewing} onClose={() => setViewing(null)} title={viewing?.replace(/^\[.+?\]\s*/, '') ?? ''}>
-            <p className="text-[14px] leading-relaxed text-sub">프로토타입용 예시 약관이에요. 실제 서비스에서는 이 영역에 약관 전문이 표시돼요. 내금고는 계좌 개설과 거래를 위해 필요한 최소한의 정보만 수집하며, 관련 법령에 따라 안전하게 보관해요.</p>
-            <Button full size="lg" className="mt-6" onClick={() => {
-              const t = TERMS.find((x) => x.label === viewing);
-              if (t) setAgreed({ ...agreed, [t.id]: true });
-              setViewing(null);
-            }}>동의하기</Button>
-          </Sheet>
-        </>
-      )}
-
-      {step === 2 && (
-        <>
-          <h2 className="font-display text-[22px] leading-snug font-bold">아래 내용으로<br />계좌를 개설할까요?</h2>
-          <div className="mt-6 rounded-2xl bg-surface px-5 py-3">
-            <Row label="상품">{p.name}</Row>
-            <Row label="적용 금리"><span className="num">최고 연 {p.rate.toFixed(1)}%</span></Row>
-            <Row label="예금주">{user?.name}</Row>
-            <Row label="개설 시 잔액"><span className="num">0원</span></Row>
-            <Row label="선택 동의">{agreed.t4 ? '동의' : '미동의'}</Row>
-          </div>
-          {error && <p role="alert" className="mt-4 flex items-center gap-1.5 rounded-xl bg-danger-soft px-4 py-3 text-[14px] text-danger"><CircleAlert className="size-4 shrink-0" />{error}</p>}
-          <p className="mt-4 text-[13px] text-sub">실제 금융계좌가 아닌 프로젝트 내 가상 계좌가 개설돼요.</p>
-        </>
-      )}
+      {step === 0 && <>
+        <div className="rounded-2xl bg-surface p-5"><p className="text-[18px] font-bold">{p.name}</p><p className="text-[14px] text-sub">{p.tagline}</p><div className="mt-3"><RateText p={p} /></div></div>
+        <h2 className="mt-8 mb-2 text-[17px] font-bold">가입 조건을 확인해 주세요</h2>
+        {p.conditions.map((condition, i) => <Checkbox key={condition} checked={!!checked[i]} onChange={(v) => setChecked((old) => { const next = [...old]; next[i] = v; return next; })}>{condition}</Checkbox>)}
+      </>}
+      {step === 1 && <>
+        <h2 className="mb-4 text-[22px] font-bold">약관에 동의해 주세요</h2>
+        {!terms.length && <Button variant="secondary" onClick={() => void loadTerms()}>약관 다시 불러오기</Button>}
+        <Checkbox strong checked={allAgreed} onChange={(v) => setAgreed(Object.fromEntries(terms.map((t) => [t.id, v])))}>전체 동의</Checkbox>
+        {terms.map((term) => <div key={term.id} className="flex items-center"><div className="flex-1"><Checkbox checked={!!agreed[term.id]} onChange={(v) => setAgreed({ ...agreed, [term.id]: v })}>{term.required ? '[필수] ' : '[선택] '}{term.title}</Checkbox></div><button onClick={() => setViewing(term)} className="px-2 text-[13px] text-sub underline">보기</button></div>)}
+        <Sheet open={!!viewing} onClose={() => setViewing(null)} title={viewing?.title ?? ''}><p className="whitespace-pre-wrap text-[14px] leading-relaxed text-sub">{viewing?.content}</p><Button full className="mt-5" onClick={() => { if (viewing) setAgreed({ ...agreed, [viewing.id]: true }); setViewing(null); }}>동의하기</Button></Sheet>
+      </>}
+      {step === 2 && <>
+        <h2 className="mb-5 text-[22px] font-bold">통장 정보를 정해 주세요</h2>
+        <div className="space-y-4">
+          <Field label="통장 비밀번호 4자리" type="password" inputMode="numeric" maxLength={4} autoComplete="new-password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value.replace(/\D/g, '') })} />
+          <Field label="통장 비밀번호 확인" type="password" inputMode="numeric" maxLength={4} autoComplete="new-password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value.replace(/\D/g, '') })} error={form.confirm && form.confirm !== form.password ? '비밀번호가 서로 달라요.' : undefined} />
+          <Field label="계좌 개설 목적" placeholder="생활비, 급여 수령 등" maxLength={100} value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} />
+        </div>
+        <div className="mt-6 rounded-2xl bg-surface px-5 py-3"><Row label="상품">{p.name}</Row><Row label="예금주">{user?.name}</Row><Row label="개설 시 잔액">0원</Row></div>
+        <p className="mt-4 text-[13px] text-sub">실제 금융계좌가 아닌 프로젝트 내 가상 계좌예요.</p>
+      </>}
+      {error && <p role="alert" className="mt-4 flex items-center gap-1.5 rounded-xl bg-danger-soft px-4 py-3 text-[14px] text-danger"><CircleAlert className="size-4 shrink-0" />{error}</p>}
     </Page>
   );
 }

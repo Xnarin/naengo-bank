@@ -112,16 +112,16 @@ def test_card_payments_ledger_limits_overseas_and_notifications(bank):
     http, db, user, source, *_ = bank
     card = issue(http, source)
     path = "/cards/" + card["id"]
-    payment = {"amount": 50_000, "place": "카페", "category": "카페"}
+    payment = {"amount": 50_000, "place": "카페", "category": "카페", "idempotency_key": "payment-main-1"}
     response = http.post(path + "/payments", json=payment)
     assert response.status_code == 201 and response.json()["new_balance"] == 1_950_000
     row = db.scalar(select(AccountTransaction))
     assert row.transaction_type == "CARD" and row.card_payment_id == response.json()["id"]
-    assert http.post(path + "/payments", json=payment | {"amount": 60_000}).json()["code"] == "CARD_LIMIT"
-    assert http.post(path + "/payments", json=payment | {"overseas": True}).json()["code"] == "OVERSEAS_BLOCKED"
+    assert http.post(path + "/payments", json=payment | {"amount": 60_000, "idempotency_key": "limit-check"}).json()["code"] == "CARD_LIMIT"
+    assert http.post(path + "/payments", json=payment | {"overseas": True, "idempotency_key": "overseas-check"}).json()["code"] == "OVERSEAS_BLOCKED"
     assert db.scalar(select(func.count()).select_from(CardPayment)) == 1
     assert http.patch(path, json={"daily_limit": 200_000, "overseas_enabled": True, "pin": PIN}).status_code == 200
-    assert http.post(path + "/payments", json=payment | {"overseas": True}).status_code == 201
+    assert http.post(path + "/payments", json=payment | {"overseas": True, "idempotency_key": "overseas-check"}).status_code == 201
     assert len(http.get(path + "/payments", params={"month": now_kst().strftime("%Y-%m")}).json()) == 2
     assert http.get(path + "/payments", params={"month": "2026-13"}).status_code == 400
     assert http.get("/notifications").json()["unread"] == 2
@@ -130,13 +130,55 @@ def test_card_payments_ledger_limits_overseas_and_notifications(bank):
     assert db.get(Account, source.id).balance == 1_900_000
 
 
+def test_payment_replay_preserves_original_result_and_owner(bank):
+    http, db, _, source, _, other = bank
+    card = issue(http, source)
+    path = "/cards/" + card["id"] + "/payments"
+    body = {"amount": 1000, "place": "카페", "category": "카페", "idempotency_key": "replay-payment"}
+    first = http.post(path, json=body)
+    assert first.status_code == 201
+    assert http.post(path, json=body).json() == first.json()
+    assert http.post(path, json=body | {"idempotency_key": "new-payment-2"}).status_code == 201
+    db.get(Card, uuid.UUID(card["id"])).status = "CANCELED"
+    db.commit()
+    assert http.post(path, json=body).json() == first.json()
+    assert http.post(path, json=body | {"amount": 2000}).status_code == 409
+    assert http.post(path, json=body | {"place": "마트"}).status_code == 409
+    assert http.post(path, json=body | {"category": "쇼핑"}).status_code == 409
+    assert http.post(path, json=body | {"overseas": True}).status_code == 409
+    assert db.get(Account, source.id).balance == 1_998_000
+    assert db.scalar(select(func.count()).select_from(CardPayment)) == 2
+    assert db.scalar(select(func.count()).select_from(AccountTransaction)) == 2
+    assert http.get("/notifications").json()["unread"] == 2
+    http.headers["Authorization"] = "Bearer " + create_access_token(other.id)
+    assert http.post(path, json=body).status_code == 404
+
+
+def test_payment_requires_request_key_and_failed_request_can_retry(bank):
+    http, db, _, source, *_ = bank
+    card = issue(http, source)
+    path = "/cards/" + card["id"] + "/payments"
+    body = {"amount": 1000, "place": "카페"}
+    assert http.post(path, json=body).status_code == 422
+    assert http.post(path, json=body | {"idempotency_key": ""}).status_code == 422
+    source.balance = 0
+    db.commit()
+    body["idempotency_key"] = "retry-after-failure"
+    assert http.post(path, json=body).json()["code"] == "INSUFFICIENT"
+    source.balance = 2000
+    db.commit()
+    assert http.post(path, json=body).status_code == 201
+    assert http.post(path, json=body).status_code == 201
+    assert db.get(Account, source.id).balance == 1000
+
+
 @pytest.mark.parametrize("status", ["SUSPENDED", "LOST", "REISSUED", "CANCELED"])
 def test_unusable_cards_never_charge(bank, status):
     http, db, _, source, *_ = bank
     card = issue(http, source)
     db.get(Card, uuid.UUID(card["id"])).status = status
     db.commit()
-    response = http.post("/cards/" + card["id"] + "/payments", json={"amount": 1000, "place": "가맹점"})
+    response = http.post("/cards/" + card["id"] + "/payments", json={"amount": 1000, "place": "가맹점", "idempotency_key": "blocked-check"})
     assert response.json()["code"] == "CARD_UNAVAILABLE"
     assert db.get(Account, source.id).balance == 2_000_000
     assert db.scalar(select(func.count()).select_from(AccountTransaction)) == 0
@@ -148,10 +190,10 @@ def test_suspended_account_and_low_balance_never_charge(bank):
     source.status = "SUSPENDED"
     db.commit()
     path = "/cards/" + card["id"] + "/payments"
-    assert http.post(path, json={"amount": 1000, "place": "가맹점"}).json()["code"] == "SUSPENDED"
+    assert http.post(path, json={"amount": 1000, "place": "가맹점", "idempotency_key": "suspended-check"}).json()["code"] == "SUSPENDED"
     source.status, source.balance = "ACTIVE", 0
     db.commit()
-    assert http.post(path, json={"amount": 1000, "place": "가맹점"}).json()["code"] == "INSUFFICIENT"
+    assert http.post(path, json={"amount": 1000, "place": "가맹점", "idempotency_key": "balance-check"}).json()["code"] == "INSUFFICIENT"
     assert db.scalar(select(func.count()).select_from(CardPayment)) == 0
 
 
@@ -167,7 +209,7 @@ def test_notification_read_is_scoped_to_owner(bank):
 
 
 def test_once_execution_is_atomic_and_idempotent(bank):
-    http, db, _, source, target, other = bank
+    http, db, user, source, target, other = bank
     result = register(http, source, target)
     schedule_id = uuid.UUID(result["id"])
     at = datetime.fromisoformat(result["next_run_at"]) + timedelta(seconds=1)
@@ -176,6 +218,9 @@ def test_once_execution_is_atomic_and_idempotent(bank):
     assert db.get(Account, source.id).balance == 1_990_000 and db.get(Account, target.id).balance == 10_000
     assert db.scalar(select(func.count()).select_from(Transfer)) == 1
     assert db.scalar(select(func.count()).select_from(AccountTransaction)) == 2
+    assert [(n.type, n.user_id) for n in db.scalars(select(Notification).order_by(Notification.id))] == [
+        ("TRANSFER_IN", other.id), ("AUTO_TRANSFER_SUCCESS", user.id)]
+    assert http.get("/notifications").json()["items"][0]["type"] == "AUTO_TRANSFER_SUCCESS"
     assert http.get("/auto-transfers").json()[0]["last_run"]["status"] == "SUCCESS"
     assert http.get("/auto-transfers", params={"status": "ACTIVE"}).json() == []
     http.headers["Authorization"] = "Bearer " + create_access_token(other.id)
@@ -183,11 +228,19 @@ def test_once_execution_is_atomic_and_idempotent(bank):
     assert http.delete("/auto-transfers/" + str(schedule_id)).status_code == 404
 
 
-def test_failed_once_has_no_ledger_and_one_notification(bank):
+@pytest.mark.parametrize("failure", ["balance", "limit", "suspended", "closed_recipient"])
+def test_failed_once_has_no_ledger_and_one_notification(bank, failure):
     http, db, _, source, target, _ = bank
-    source.balance = 0
-    db.commit()
     result = register(http, source, target)
+    if failure == "balance":
+        source.balance = 0
+    elif failure == "limit":
+        source.daily_limit = 1
+    elif failure == "suspended":
+        source.status = "SUSPENDED"
+    else:
+        target.status = "CLOSED"
+    db.commit()
     schedule_id = uuid.UUID(result["id"])
     at = datetime.fromisoformat(result["next_run_at"]) + timedelta(seconds=1)
     assert auto_transfers.process_one(db, schedule_id, at)
@@ -195,6 +248,26 @@ def test_failed_once_has_no_ledger_and_one_notification(bank):
     assert db.scalar(select(Transfer)).status == "FAILED"
     assert db.scalar(select(AutoTransfer)).status == "ENDED"
     assert db.scalar(select(func.count()).select_from(AccountTransaction)) == 0
+    assert http.get("/notifications").json()["unread"] == 1
+    assert http.get("/notifications").json()["items"][0]["type"] == "AUTO_TRANSFER_FAIL"
+    assert db.scalar(select(func.count()).select_from(Notification)) == 1
+
+
+def test_read_selected_notifications_keeps_new_and_other_users_unread(bank):
+    http, db, user, _, _, other = bank
+    notifications.create(db, user.id, "TRANSFER_IN", "seen")
+    db.commit()
+    seen = http.get("/notifications").json()["items"][0]["id"]
+    notifications.create(db, user.id, "TRANSFER_IN", "arrived later")
+    notifications.create(db, other.id, "TRANSFER_IN", "someone else's")
+    db.commit()
+    other_notice = db.scalar(select(Notification).where(Notification.user_id == other.id))
+    assert http.post("/notifications/read-all", json={"ids": [seen, other_notice.id]}).status_code == 204
+    result = http.get("/notifications").json()
+    assert result["unread"] == 1
+    assert result["items"][0]["read_at"] is None
+    assert db.get(Notification, other_notice.id).read_at is None
+    assert http.post("/notifications/read-all", json={"ids": []}).status_code == 204
     assert http.get("/notifications").json()["unread"] == 1
 
 
@@ -241,6 +314,7 @@ def test_recurrence_failure_advances_and_rollback_keeps_money(bank, monkeypatch)
     db.rollback()
     assert db.get(Account, source.id).balance == 2_000_000
     assert db.scalar(select(func.count()).select_from(Transfer)) == 0
+    assert db.scalar(select(func.count()).select_from(Notification)) == 0
     monkeypatch.setattr(auto_transfers, "next_run", original)
     source = db.get(Account, source.id)
     source.balance = 0
@@ -268,7 +342,7 @@ def test_expired_card_and_expired_schedule_do_not_pay(bank):
     card = issue(http, source)
     db.get(Card, uuid.UUID(card["id"])).expiry_date = "01/20"
     db.commit()
-    assert http.post("/cards/" + card["id"] + "/payments", json={"amount": 1000, "place": "가맹점"}).json()["code"] == "CARD_UNAVAILABLE"
+    assert http.post("/cards/" + card["id"] + "/payments", json={"amount": 1000, "place": "가맹점", "idempotency_key": "expired-check"}).json()["code"] == "CARD_UNAVAILABLE"
     result = register(http, source, target, end_date=(now_kst() + timedelta(days=1)).date().isoformat())
     row = db.get(AutoTransfer, uuid.UUID(result["id"]))
     assert not auto_transfers.process_one(db, row.id, now_kst() + timedelta(days=3))
@@ -283,7 +357,7 @@ def test_payment_rolls_back_if_notification_fails(bank, monkeypatch):
         raise RuntimeError("notification write failed")
     monkeypatch.setattr(notifications, "create", fail)
     with pytest.raises(RuntimeError):
-        http.post("/cards/" + card["id"] + "/payments", json={"amount": 1000, "place": "가맹점"})
+        http.post("/cards/" + card["id"] + "/payments", json={"amount": 1000, "place": "가맹점", "idempotency_key": "rollback-check"})
     assert db.get(Account, source.id).balance == 2_000_000
     assert db.scalar(select(func.count()).select_from(CardPayment)) == 0
     assert db.scalar(select(func.count()).select_from(AccountTransaction)) == 0

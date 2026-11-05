@@ -37,7 +37,7 @@ export function AccountManage() {
         <p className="num text-[13px] text-sub">내금고 {acc.number}</p>
       </section>
 
-      <button onClick={() => { bank.toggleFavorite(acc.id); bank.toast(acc.favorite ? '즐겨찾기를 해제했어요' : '홈 맨 위에 고정했어요'); }}
+      <button onClick={async () => { try { await bank.toggleFavorite(acc.id); bank.toast(acc.favorite ? '즐겨찾기를 해제했어요' : '홈 맨 위에 고정했어요'); } catch (e) { bank.toast((e as Error).message); } }}
         role="switch" aria-checked={!!acc.favorite}
         className="mt-6 flex w-full items-center justify-between border-y border-line py-4 text-left">
         <span>
@@ -121,7 +121,7 @@ function StatusSection({ id, suspended }: { id: string; suspended: boolean }) {
             <div className="rise mt-3">
               <Field label="인증번호 6자리" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code}
                 onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} error={error || undefined}
-                hint={<>메일 대신 예시로 보여 드려요: <span className="num font-semibold text-ink">{sent}</span></>} />
+                hint={sent === 'sent' ? '이메일로 받은 인증번호를 입력해 주세요.' : <>개발용 인증번호: <span className="num font-semibold text-ink">{sent}</span></>} />
               <div className="mt-3 grid grid-cols-[auto_1fr] gap-2">
                 <Button variant="secondary" onClick={send} disabled={busy}>다시 받기</Button>
                 <Button loading={busy} disabled={code.length !== 6} onClick={confirm}>해제하기</Button>
@@ -147,10 +147,9 @@ function LimitSheet({ open, onClose, accountId, current }: { open: boolean; onCl
     : m > MAX_LIMITS.monthly ? `1달 한도는 최대 ${won(MAX_LIMITS.monthly)}이에요.`
     : d > m ? '1일 한도는 1달 한도보다 클 수 없어요.' : '';
 
-  async function save() {
-    setPin(false);
-    try { await bank.setLimits(accountId, { daily: d, monthly: m }); bank.toast('이체한도를 바꿨어요'); onClose(); }
-    catch (e) { setError(e instanceof BankError ? e.message : '한도를 바꾸지 못했어요.'); }
+  async function save(pinValue: string) {
+    try { await bank.setLimits(accountId, { daily: d, monthly: m }, pinValue); setPin(false); bank.toast('이체한도를 바꿨어요'); onClose(); }
+    catch (e) { if (e instanceof BankError && ['PIN', 'PIN_LOCKED', 'AUTH', 'LOGIN_LOCKED'].includes(e.code)) throw e; setPin(false); setError(e instanceof BankError ? e.message : '한도를 바꾸지 못했어요.'); }
   }
 
   return (
@@ -212,10 +211,10 @@ export function CloseAccount() {
   const blockers = closeBlockers(bank.db, acc.id);
   const ok = !blockers.length;
 
-  async function close() {
-    setPin(false); setBusy(true); setError('');
-    try { await bank.closeAccount(acc!.id); }
-    catch (e) { setError((e as Error).message); }
+  async function close(pinValue: string) {
+    setBusy(true); setError('');
+    try { await bank.closeAccount(acc!.id, pinValue); setPin(false); }
+    catch (e) { if (e instanceof BankError && ['PIN', 'PIN_LOCKED', 'AUTH', 'LOGIN_LOCKED'].includes(e.code)) throw e; setPin(false); setError((e as Error).message); }
     finally { setBusy(false); }
   }
 

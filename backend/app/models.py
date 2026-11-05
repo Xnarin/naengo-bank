@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import JSON, BigInteger, CheckConstraint, ForeignKey, Index, Integer, Numeric, String, Text, Uuid
+from sqlalchemy import JSON, BigInteger, CheckConstraint, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, Uuid
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.types import DateTime
@@ -246,9 +246,11 @@ class Card(Base):
 class CardPayment(Base):
     """카드 결제내역"""
     __tablename__ = "card_payments"
-    __table_args__ = (Index("idx_card_payments_card_id", "card_id"),)
+    __table_args__ = (Index("idx_card_payments_card_id", "card_id"), UniqueConstraint("card_id", "idempotency_key", name="uq_card_payment_request"))
     id: Mapped[int] = big_pk()
     card_id: Mapped[uuid.UUID] = ref("cards.id")
+    idempotency_key: Mapped[str | None] = mapped_column(String(64))  # 기존 결제는 NULL
+    overseas: Mapped[bool | None]
     amount: Mapped[int] = mapped_column(BigInteger)
     place: Mapped[str | None] = mapped_column(String(100))
     category: Mapped[str | None] = mapped_column(String(30))

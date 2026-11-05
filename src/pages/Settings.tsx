@@ -15,8 +15,9 @@ type SheetKind = null | 'name' | 'password' | 'pin-check' | 'pin-new';
 export function Settings() {
   const bank = useBank();
   const { user } = bank;
+  const [currentPin, setCurrentPin] = useState('');
   const [sheet, setSheet] = useState<SheetKind>(null);
-  const close = () => setSheet(null);
+  const close = () => { setSheet(null); setCurrentPin(''); };
   if (!user) return null;
 
   return (
@@ -51,8 +52,8 @@ export function Settings() {
 
       <NameSheet open={sheet === 'name'} onClose={close} />
       <PasswordSheet open={sheet === 'password'} onClose={close} />
-      <PinSheet open={sheet === 'pin-check'} onClose={close} onPass={() => setSheet('pin-new')} purpose="지금 쓰는" />
-      <NewPinSheet open={sheet === 'pin-new'} onClose={close} />
+      <PinSheet open={sheet === 'pin-check'} onClose={close} onPass={async (pin) => { await bank.verifyPin(pin); setCurrentPin(pin); setSheet('pin-new'); }} purpose="지금 쓰는" />
+      <NewPinSheet open={sheet === 'pin-new'} onClose={close} currentPin={currentPin} />
     </Page>
   );
 }
@@ -117,7 +118,7 @@ function PasswordSheet({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
-function NewPinSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function NewPinSheet({ open, onClose, currentPin }: { open: boolean; onClose: () => void; currentPin: string }) {
   const { changePin, toast } = useBank();
   const [first, setFirst] = useState<string | null>(null);
   const [err, setErr] = useState<{ msg: string; n: number } | null>(null);
@@ -128,7 +129,7 @@ function NewPinSheet({ open, onClose }: { open: boolean; onClose: () => void }) 
     if (!first) { if (weakPin(p)) return bump('같은 숫자나 연속된 숫자는 쓸 수 없어요.'); setFirst(p); setErr(null); return; }
     if (p !== first) { setFirst(null); return bump('두 번 입력한 비밀번호가 달라요. 처음부터 다시 눌러 주세요.'); }
     setBusy(true);
-    try { await changePin(p); toast('간편비밀번호를 바꿨어요'); setFirst(null); onClose(); }
+    try { await changePin(currentPin, p); toast('간편비밀번호를 바꿨어요'); setFirst(null); onClose(); }
     catch (e) { setFirst(null); bump((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -151,17 +152,17 @@ export function Withdraw() {
   const [error, setError] = useState('');
   const blockers = bank.withdrawBlockers();
 
-  async function go() {
-    setPin(false); setBusy(true); setError('');
-    try { await bank.withdraw(); bank.toast('탈퇴했어요. 그동안 이용해 주셔서 고마워요'); navigate('/login', { replace: true }); }
-    catch (e) { setError((e as Error).message); setBusy(false); }
+  async function go(pinValue: string) {
+    setBusy(true); setError('');
+    try { await bank.withdraw(pinValue); setPin(false); bank.toast('탈퇴했어요. 그동안 이용해 주셔서 고마워요'); navigate('/login', { replace: true }); }
+    catch (e) { setBusy(false); if (['PIN', 'PIN_LOCKED', 'AUTH', 'LOGIN_LOCKED'].includes((e as { code?: string }).code ?? '')) throw e; setPin(false); setError((e as Error).message); }
   }
 
   return (
     <Page back title="회원 탈퇴" footer={blockers.length ? undefined : <Button size="lg" full variant="navy" disabled={!agree} loading={busy} onClick={() => setPin(true)}>탈퇴하기</Button>}>
       <h2 className="pt-2 font-display text-[22px] leading-snug font-bold">탈퇴하기 전에<br />확인해 주세요</h2>
       <ul className="mt-6 space-y-2 text-[14px] leading-relaxed text-sub">
-        <li>· 모든 계좌가 해지되고, 연결된 체크카드도 함께 해지돼요.</li>
+        <li>· 모든 계좌와 연결된 체크카드를 먼저 해지해야 탈퇴할 수 있어요.</li>
         <li>· 탈퇴한 이메일로는 다시 가입할 수 없어요(프로토타입 기준).</li>
         <li>· 되돌릴 수 없어요.</li>
       </ul>

@@ -206,6 +206,8 @@ Table cards [headercolor: #175e7a] {
 Table card_payments [headercolor: #175e7a] {
 	id bigint [ pk, increment, note: '카드결제 ID' ]
 	card_id uuid [ not null, note: '카드 ID' ]
+	idempotency_key varchar(64) [ note: '카드별 중복 결제 방지 키. 기존 결제만 NULL' ]
+	overseas boolean [ note: '해외결제 여부. 기존 결제만 NULL' ]
 	amount bigint [ not null, note: '결제 금액 (원)' ]
 	place varchar(100) [ note: '가맹점명' ]
 	category varchar(30) [ note: '업종 분류 (식비, 카페 등)' ]
@@ -214,6 +216,7 @@ Table card_payments [headercolor: #175e7a] {
 
 	indexes {
 		card_id [ name: 'idx_card_payments_card_id' ]
+		(card_id, idempotency_key) [ unique, name: 'uq_card_payment_request' ]
 	}
 
 	Note: '카드 결제내역'

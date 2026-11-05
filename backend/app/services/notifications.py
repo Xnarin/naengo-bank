@@ -15,6 +15,9 @@ def list_notifications(db: Session, user_id) -> dict:
     return {"items": items, "unread": unread}
 
 
-def mark_all_read(db: Session, user_id) -> None:
-    db.execute(update(Notification).where(Notification.user_id == user_id, Notification.read_at.is_(None)).values(read_at=now_kst()))
+def mark_all_read(db: Session, user_id, ids: list[int] | None = None) -> None:
+    query = update(Notification).where(Notification.user_id == user_id, Notification.read_at.is_(None))
+    if ids is not None:
+        query = query.where(Notification.id.in_(ids))
+    db.execute(query.values(read_at=now_kst()))
     db.commit()

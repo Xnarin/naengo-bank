@@ -223,3 +223,75 @@ def test_invalid_input(client):
     r = verified_signup(http, pin="12345")
     assert r.status_code == 422 and "12345" not in r.text
     assert http.post("/auth/codes", json={"email": EMAIL, "purpose": "OTHER"}).status_code == 422
+
+
+def test_change_password_requires_current_and_changes_login(client):
+    http, db = client
+    verified_signup(http)
+    headers = {"Authorization": "Bearer " + login(http).json()["access_token"]}
+    path = "/me/password"
+    change = {"current_password": PASSWORD, "new_password": "ChangedPassword123!"}
+    assert http.put(path, headers=headers, json=change | {"current_password": "wrong"}).status_code == 401
+    assert verify_secret(db.scalar(select(User)).password_hash, PASSWORD)
+    assert http.put(path, headers=headers, json=change | {"new_password": PASSWORD}).status_code == 400
+    assert http.put(path, headers=headers, json=change).status_code == 204
+    assert login(http).status_code == 401
+    assert login(http, password=change["new_password"]).status_code == 200
+    assert http.put(path, json=change).status_code == 401
+
+
+def test_change_pin_keeps_failure_counter_and_changes_login(client):
+    http, db = client
+    verified_signup(http)
+    headers = {"Authorization": "Bearer " + login(http).json()["access_token"]}
+    change = {"current_pin": PIN, "new_pin": "584937"}
+    assert http.put("/me/pin", headers=headers, json=change | {"current_pin": "000000"}).status_code == 401
+    assert db.scalar(select(User)).pin_fail_count == 1
+    assert http.put("/me/pin", headers=headers, json=change | {"new_pin": "123456"}).status_code == 400
+    assert http.put("/me/pin", headers=headers, json=change).status_code == 204
+    assert verify_secret(db.scalar(select(User)).pin, change["new_pin"])
+    assert db.scalar(select(User)).pin_fail_count == 0
+    assert http.post("/auth/login/pin", json={"email": EMAIL, "pin": PIN}).status_code == 401
+    assert http.post("/auth/login/pin", json={"email": EMAIL, "pin": change["new_pin"]}).status_code == 200
+
+
+def test_change_pin_five_failures_locks_user(client):
+    http, db = client
+    verified_signup(http)
+    headers = {"Authorization": "Bearer " + login(http).json()["access_token"]}
+    for i in range(5):
+        result = http.put("/me/pin", headers=headers, json={"current_pin": "000000", "new_pin": "584937"})
+        assert result.status_code == (403 if i == 4 else 401)
+    assert db.scalar(select(User)).status == "LOCKED"
+
+
+def test_withdraw_with_pin_requires_closed_accounts(client):
+    http, db = client
+    verified_signup(http)
+    headers = {"Authorization": "Bearer " + login(http).json()["access_token"]}
+    assert http.request("DELETE", "/me", headers=headers, json={"pin": PIN}).json()["code"] == "CLOSE_BLOCKED"
+    db.scalar(select(Account)).status = "CLOSED"
+    db.commit()
+    assert http.request("DELETE", "/me", headers=headers, json={"pin": "000000"}).status_code == 401
+    assert http.request("DELETE", "/me", headers=headers, json={}).status_code == 422
+    assert http.request("DELETE", "/me", headers=headers, json={"pin": PIN}).status_code == 204
+    assert db.scalar(select(User)).status == "WITHDRAWN"
+
+
+def test_agent_card_helpers_use_encrypted_cards_and_common_rules(client, monkeypatch):
+    import uuid
+    from cryptography.fernet import Fernet
+    from app.agent import tools as agent_tools
+    from app.models import Card
+    from app.services import cards
+    http, db = client
+    verified_signup(http)
+    monkeypatch.setattr(settings, "card_key", Fernet.generate_key().decode())
+    user, account = db.scalar(select(User)), db.scalar(select(Account))
+    issued = cards.issue(db, user.id, account.id, 1_000_000, False)
+    card = db.get(Card, uuid.UUID(str(issued["id"])))
+    assert issued["last4"] in agent_tools.card_label(card)
+    assert agent_tools.set_card_status(db, user.id, card.id, "LOST").status == "LOST"
+    with pytest.raises(BankError) as error:
+        agent_tools.set_card_status(db, user.id, card.id, "ACTIVE")
+    assert error.value.code == "CARD_UNAVAILABLE"

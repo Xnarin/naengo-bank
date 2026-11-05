@@ -12,10 +12,10 @@ export const maskEmail = (e: string) => {
   return `${u.slice(0, 2)}***@${d}`;
 };
 
-/** 숫자만 받아 123-456-789012 형태로 */
+/** 숫자만 받아 123-4567-8901 형태로 */
 export const formatAccountInput = (v: string) => {
-  const d = v.replace(/\D/g, '').slice(0, 12);
-  return [d.slice(0, 3), d.slice(3, 6), d.slice(6)].filter(Boolean).join('-');
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  return [d.slice(0, 3), d.slice(3, 7), d.slice(7)].filter(Boolean).join('-');
 };
 
 const WD = ['일', '월', '화', '수', '목', '금', '토'];

@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.errors import BankError
-from app.models import Account, AccountProduct, AccountTransaction, Base, User
+from app.models import Account, AccountProduct, AccountTransaction, Base, Notification, User
+from app.services import notifications
 from app.services.transfers import transfer
 
 U1, U2, A1, A2 = (uuid.uuid4() for _ in range(4))
@@ -45,6 +46,9 @@ def test_idempotent(db):
     a = transfer(db, A1, A2, 10_000, "same")
     b = transfer(db, A1, A2, 10_000, "same")
     assert a.id == b.id and balances(db) == [1_990_000, 10_000]
+    notices = db.scalars(select(Notification)).all()
+    assert len(notices) == 1 and notices[0].user_id == U2
+    assert notices[0].type == "TRANSFER_IN" and "홍길동" in notices[0].message and "10,000원" in notices[0].message
 
 
 @pytest.mark.parametrize("amount", [True, 1.0, 1.5, "1000"])
@@ -76,6 +80,26 @@ def test_insufficient_balance(db):
     with pytest.raises(BankError) as e:
         transfer(db, A2, A1, 1, "k")
     assert e.value.code == "INSUFFICIENT"
+    assert db.scalars(select(Notification)).all() == []
+
+
+def test_own_account_transfer_does_not_notify_incoming(db):
+    db.get(Account, A2).user_id = U1
+    db.commit()
+    transfer(db, A1, A2, 10_000, "own")
+    assert balances(db) == [1_990_000, 10_000]
+    assert db.scalars(select(Notification)).all() == []
+
+
+def test_notification_failure_rolls_back_transfer(db, monkeypatch):
+    def fail(*args):
+        raise RuntimeError("notification failed")
+    monkeypatch.setattr(notifications, "create", fail)
+    with pytest.raises(RuntimeError):
+        transfer(db, A1, A2, 10_000, "rollback")
+    assert balances(db) == [2_000_000, 0]
+    assert db.scalars(select(AccountTransaction)).all() == []
+    assert db.scalars(select(Notification)).all() == []
 
 
 @pytest.mark.parametrize("status,who,code", [

@@ -3,191 +3,92 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Bot, CircleAlert, CircleCheck, RotateCcw, SendHorizontal } from 'lucide-react';
 import { Button, Page, Row } from '../components/ui';
 import { PinSheet } from '../components/bank';
-import { chatClient, isMockChat, type Block, type ChatMessage } from '../api/chat';
-import { SUGGESTIONS } from '../api/mockChat';
+import { chatClient, type Block, type ChatMessage } from '../api/chat';
+const SUGGESTIONS = ['내 계좌 잔액 알려줘', '지난달 소비 패턴 분석해줘', '이번 달 돈이 부족할까?', '다음달 얼마 정도 쓸까?', '내 구독 중인 거 찾아줘', '송금하고 싶어'];
 import { productById } from '../data/mock';
 import { cn, fmtDateTime, fmtDay, signedWon, won } from '../lib/format';
 import { useBank } from '../store';
+import { InsightCard } from '../components/InsightCard';
 
 const uid = () => Math.random().toString(36).slice(2);
+/** 그래프 카드는 아바타 들여쓰기를 벗어나 대화 폭을 다 쓴다 */
+const INSIGHT = new Set<Block['kind']>(['spendingInsight', 'forecastInsight', 'subscriptionInsight']);
 
 export function Assistant() {
   const bank = useBank();
-  const { chat, setChat, user, db, myAccounts, myCards } = bank;
+  const { chat, setChat, user } = bank;
   const navigate = useNavigate();
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
+  const [pinFor, setPinFor] = useState<{ msgId: string; idx: number; threadId: string } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [chat.messages.length, busy]);
-
-  const snapshot = () => {
-    const ids = myAccounts.map((a) => a.id);
-    const myTxs = db.txs.filter((t) => ids.includes(t.accountId));
-    const seen = new Map<string, string>();
-    for (const t of [...myTxs].sort((a, b) => b.date.localeCompare(a.date))) {
-      if (t.type === 'out' && t.counterpartyAccount && !myAccounts.some((a) => a.number === t.counterpartyAccount) && !seen.has(t.counterparty)) seen.set(t.counterparty, t.counterpartyAccount);
-    }
-    return {
-      userName: user?.name ?? '',
-      accounts: myAccounts,
-      txs: myTxs,
-      cards: myCards,
-      cardTxs: db.cardTxs,
-      recipients: [...seen].map(([name, number]) => ({ name, number })),
-      lookup: (no: string) => {
-        const a = db.accounts.find((x) => x.number.replace(/\D/g, '') === no.replace(/\D/g, ''));
-        return a ? { name: db.users.find((u) => u.email === a.owner)?.name ?? '', number: a.number } : null;
-      },
-      simulateError: bank.simulateError,
-      scheduled: db.scheduled.filter((x) => x.owner === user?.email && x.status === 'waiting'),
-    };
-  };
-
+  const latestAnswerRef = useRef<HTMLDivElement>(null);
+  const pending = chat.messages.some((m) => m.blocks?.some((b) => b.kind === 'agentConfirm' && b.status === 'pending'));
+  useEffect(() => {
+    const hasChart = chat.messages.at(-1)?.blocks?.some((block) => ['spendingInsight', 'forecastInsight', 'subscriptionInsight'].includes(block.kind));
+    (hasChart ? latestAnswerRef.current : endRef.current)?.scrollIntoView({ behavior: 'smooth', block: hasChart ? 'start' : 'end' });
+  }, [chat.messages.length, busy]);
   const push = (m: ChatMessage) => setChat((c) => ({ ...c, messages: [...c.messages, m] }));
-
+  function setStatus(msgId: string, idx: number, status: 'pending' | 'processing' | 'done' | 'cancelled' | 'failed') {
+    setChat((c) => ({ ...c, messages: c.messages.map((m) => m.id !== msgId ? m : { ...m,
+      blocks: m.blocks?.map((b, i) => i === idx && b.kind === 'agentConfirm' ? { ...b, status } : b) }) }));
+  }
   async function ask(text: string, addUser = true) {
-    const msg = text.trim();
-    if (!msg || busy) return;
-    if (addUser) push({ id: uid(), role: 'user', text: msg });
-    setInput('');
-    setBusy(true);
+    const message = text.trim();
+    if (!message || busyRef.current || pending) return;
+    busyRef.current = true; setBusy(true); setInput('');
+    if (addUser) push({ id: uid(), role: 'user', text: message });
     try {
-      const res = await chatClient.send({ message: msg, context: chat.context, snapshot: snapshot() });
+      const res = await chatClient.send({ message, context: chat.context, snapshot: {
+        userName: user?.name ?? '', accounts: bank.myAccounts, txs: bank.db.txs, cards: bank.myCards,
+        cardTxs: bank.db.cardTxs, recipients: [], scheduled: bank.db.scheduled, lookup: () => null, simulateError: false,
+      } });
       setChat((c) => ({ messages: [...c.messages, { id: uid(), role: 'assistant', blocks: res.blocks }], context: res.context }));
-    } catch {
-      push({ id: uid(), role: 'assistant', retryText: msg, blocks: [{ kind: 'text', text: '응답을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.' }] });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function retry(m: ChatMessage) {
-    setChat((c) => ({ ...c, messages: c.messages.filter((x) => x.id !== m.id) }));
-    ask(m.retryText!, false);
-  }
-
-  const setStatus = (msgId: string, idx: number, status: Extract<Block, { kind: 'transferConfirm' }>['status']) =>
-    setChat((c) => ({
-      ...c,
-      messages: c.messages.map((m) => (m.id !== msgId ? m : { ...m, blocks: m.blocks!.map((b, i) => (i === idx && b.kind === 'transferConfirm' ? { ...b, status } : b)) })),
-    }));
-
-  const [pinFor, setPinFor] = useState<{ msgId: string; idx: number; b: Extract<Block, { kind: 'transferConfirm' }> } | null>(null);
-
-  async function confirmTransfer(msgId: string, idx: number, b: Extract<Block, { kind: 'transferConfirm' }>) {
-    setStatus(msgId, idx, 'processing');
-    try {
-      const input = { fromId: b.draft.fromId, toNumber: b.draft.toNumber, amount: b.draft.amount };
-      if (b.draft.runAt) {
-        await bank.scheduleTransfer({ ...input, runAt: b.draft.runAt });
-        setStatus(msgId, idx, 'done');
-        push({
-          id: uid(), role: 'assistant', blocks: [
-            { kind: 'result', ok: true, title: '송금을 예약했어요', lines: [`${fmtDateTime(b.draft.runAt)}에 ${b.draft.toName}님에게 ${won(b.draft.amount)}을 보낼게요.`, '그때 잔액이 부족하면 보내지 않고 알림으로 알려 드려요.'] },
-            { kind: 'links', links: [{ label: '예약 목록 보기', to: '/notifications' }, { label: '홈으로', to: '/' }] },
-          ],
-        });
-        return;
-      }
-      const r = await bank.transfer(input);
-      setStatus(msgId, idx, 'done');
-      push({
-        id: uid(), role: 'assistant', blocks: [
-          { kind: 'result', ok: true, title: '송금이 완료됐어요', lines: [`${r.toName}님에게 ${won(b.draft.amount)}을 보냈어요.`, `출금 후 잔액 ${won(r.balanceAfter)}`] },
-          { kind: 'links', links: [{ label: '거래내역 보기', to: `/accounts/${b.draft.fromId}` }, { label: '홈으로', to: '/' }] },
-        ],
-      });
     } catch (e) {
-      setStatus(msgId, idx, 'failed');
-      push({
-        id: uid(), role: 'assistant', blocks: [
-          { kind: 'result', ok: false, title: b.draft.runAt ? '예약하지 못했어요' : '송금하지 못했어요', lines: [(e as Error).message, b.draft.runAt ? '예약은 만들어지지 않았어요.' : '송금은 실행되지 않았고 잔액은 그대로예요.'] },
-          { kind: 'choices', options: [{ label: '다시 송금하기', value: '송금하고 싶어' }] },
-        ],
-      });
-    }
+      push({ id: uid(), role: 'assistant', retryText: message, blocks: [{ kind: 'text', text: (e as Error).message }] });
+    } finally { busyRef.current = false; setBusy(false); }
   }
-
-  function cancelTransfer(msgId: string, idx: number) {
-    setStatus(msgId, idx, 'cancelled');
-    push({ id: uid(), role: 'assistant', blocks: [{ kind: 'text', text: '송금을 취소했어요. 송금은 실행되지 않았어요.' }] });
+  async function confirm(msgId: string, idx: number, threadId: string, approved: boolean, pin?: string) {
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true); setStatus(msgId, idx, 'processing');
+    try {
+      const res = await chatClient.confirm(threadId, approved, pin);
+      setStatus(msgId, idx, res.status === 'failed' ? 'failed' : approved ? 'done' : 'cancelled');
+      setChat((c) => ({ messages: [...c.messages, { id: uid(), role: 'assistant', blocks: res.blocks }], context: res.context }));
+      setPinFor(null);
+      await bank.refresh();
+    } catch (e) {
+      setStatus(msgId, idx, 'pending');
+      if (approved) throw e;
+      bank.toast((e as Error).message);
+    } finally { busyRef.current = false; setBusy(false); }
   }
-
-  const submit = (e: FormEvent) => { e.preventDefault(); ask(input); };
+  const submit = (e: FormEvent) => { e.preventDefault(); void ask(input); };
   const lastId = chat.messages.at(-1)?.id;
-
   return (
-    <Page
-      title="AI 은행 어시스턴트"
-      nav
-      right={chat.messages.length > 0 && (
-        <button onClick={() => setChat({ messages: [], context: {} })} aria-label="새 대화" className="mr-1 grid size-10 place-items-center rounded-full text-sub hover:bg-surface"><RotateCcw className="size-5" /></button>
-      )}
-    >
-      {isMockChat && <p className="-mx-5 bg-surface px-5 py-2 text-[12px] text-sub">시나리오 기반 데모 응답이에요. 금리·상품 정보는 예시 데이터예요.</p>}
-
-        <div className="flex gap-2 pt-4">
-          <Avatar />
-          <div className="min-w-0 flex-1 space-y-2">
-            <p className={bubble}>{user?.name}님, 안녕하세요. 잔액 조회, 거래내역, 카드 사용내역, 통장 추천, 송금을 도와드릴 수 있어요. 송금은 확인 버튼을 누르기 전까지 실행되지 않아요.</p>
-            <div className="flex flex-wrap gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} onClick={() => ask(s)} disabled={chat.messages.length > 0 || busy} className={chip}>{s}</button>
-              ))}
-            </div>
-          </div>
-        </div>
-
+    <Page title="AI 은행 어시스턴트" nav right={<button disabled={busy} onClick={() => setChat({ messages: [], context: {} })} aria-label="새 대화" className="mr-1 grid size-10 place-items-center rounded-full text-sub"><RotateCcw className="size-5" /></button>}>
+      <div className="flex gap-2 pt-4"><Avatar /><div className="min-w-0 flex-1 space-y-2">
+        <p className={bubble}>{user?.name}님, 안녕하세요. 잔액·거래내역 조회, 소비 분석, 잔액 예측과 정기결제 후보 찾기를 도와드려요. 송금과 카드 변경은 내용을 확인하고 PIN을 입력해야 실행돼요.</p>
+        <div className="flex flex-wrap gap-2">{SUGGESTIONS.map((s) => <button key={s} onClick={() => void ask(s)} disabled={busy || pending} className={chip}>{s}</button>)}</div>
+      </div></div>
       <div className="space-y-4 pt-4" aria-live="polite">
-        {chat.messages.map((m) =>
-          m.role === 'user' ? (
-            <div key={m.id} className="rise flex justify-end">
-              <p className="max-w-[80%] rounded-2xl rounded-br-md bg-brand px-4 py-2.5 text-[15px] text-white">{m.text}</p>
-            </div>
-          ) : (
-            <div key={m.id} className="rise flex gap-2">
-              <Avatar />
-              <div className="min-w-0 flex-1 space-y-2">
-                {m.blocks?.map((b, i) => (
-                  <BlockView key={i} b={b} active={m.id === lastId && !busy} onAsk={ask} onGo={(to) => navigate(to)}
-                    onConfirm={() => b.kind === 'transferConfirm' && setPinFor({ msgId: m.id, idx: i, b })} onCancel={() => cancelTransfer(m.id, i)} />
-                ))}
-                {m.retryText && (
-                  <Button size="sm" variant="secondary" onClick={() => retry(m)} disabled={busy}><RotateCcw className="size-3.5" />다시 시도</Button>
-                )}
-              </div>
-            </div>
-          ),
-        )}
-        {busy && (
-          <div className="flex gap-2" aria-label="응답 작성 중">
-            <Avatar />
-            <span className="flex items-center gap-1 rounded-2xl rounded-tl-md bg-surface px-4 py-3">
-              <span className="dot size-1.5 rounded-full bg-sub" /><span className="dot size-1.5 rounded-full bg-sub" /><span className="dot size-1.5 rounded-full bg-sub" />
-            </span>
-          </div>
-        )}
+        {chat.messages.map((m) => m.role === 'user'
+          ? <div key={m.id} className="rise flex justify-end"><p className="max-w-[80%] rounded-2xl rounded-br-md bg-brand px-4 py-2.5 text-[15px] text-white">{m.text}</p></div>
+          : <div key={m.id} ref={m.id === lastId ? latestAnswerRef : undefined} className="rise flex scroll-mt-20 gap-2"><Avatar /><div className="min-w-0 flex-1 space-y-2">
+            {m.blocks?.map((b, i) => <div key={i} className={INSIGHT.has(b.kind) ? '-ml-10' : undefined}><BlockView b={b} active={m.id === lastId && !busy} onAsk={(s) => void ask(s)} onGo={(to) => navigate(to)}
+              onConfirm={() => b.kind === 'agentConfirm' && setPinFor({ msgId: m.id, idx: i, threadId: b.threadId })}
+              onCancel={() => { if (b.kind === 'agentConfirm') void confirm(m.id, i, b.threadId, false); }} /></div>)}
+            {m.retryText && <Button size="sm" variant="secondary" disabled={busy || pending} onClick={() => { setChat((c) => ({ ...c, messages: c.messages.filter((x) => x.id !== m.id) })); void ask(m.retryText!, false); }}>다시 시도</Button>}
+          </div></div>)}
+        {busy && <div className="flex gap-2" aria-label="응답 작성 중"><Avatar /><span className="rounded-2xl bg-surface px-4 py-3 text-[14px] text-sub">처리하고 있어요…</span></div>}
         <div ref={endRef} className="h-28" />
       </div>
-
-      <div className="fixed bottom-16 left-1/2 z-30 w-full max-w-[430px] -translate-x-1/2 border-t border-line bg-paper pb-[env(safe-area-inset-bottom)]">
-        {chat.messages.length > 0 && (
-          <div className="no-scrollbar flex gap-2 overflow-x-auto px-4 pt-2.5">
-            {SUGGESTIONS.map((s) => (
-              <button key={s} onClick={() => ask(s)} disabled={busy} className="h-8 shrink-0 rounded-full border border-line px-3 text-[13px] text-sub hover:bg-surface disabled:opacity-50">{s}</button>
-            ))}
-          </div>
-        )}
-        <form onSubmit={submit} className="flex items-center gap-2 px-4 py-2.5">
-          <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="메시지를 입력하세요" aria-label="메시지 입력"
-            className="h-11 min-w-0 flex-1 rounded-full bg-surface px-4 text-[15px] outline-none focus:ring-2 focus:ring-brand/30" />
-          <button type="submit" disabled={!input.trim() || busy} aria-label="전송" className="grid size-11 shrink-0 place-items-center rounded-full bg-brand text-white disabled:bg-line">
-            <SendHorizontal className="size-5" />
-          </button>
-        </form>
-      </div>
-      <PinSheet accountId={pinFor?.b.draft.fromId} open={!!pinFor} onClose={() => setPinFor(null)} onPass={() => { if (pinFor) confirmTransfer(pinFor.msgId, pinFor.idx, pinFor.b); setPinFor(null); }} />
+      <form onSubmit={submit} className="fixed bottom-16 left-1/2 z-30 flex w-full max-w-[430px] -translate-x-1/2 items-center gap-2 border-t border-line bg-paper px-4 py-2.5">
+        <input value={input} maxLength={500} disabled={pending} onChange={(e) => setInput(e.target.value)} placeholder={pending ? '요청을 확인하거나 취소해 주세요' : '메시지를 입력하세요'} aria-label="메시지 입력" className="h-11 min-w-0 flex-1 rounded-full bg-surface px-4 text-[15px] outline-none focus:ring-2 focus:ring-brand/30" />
+        <button type="submit" disabled={!input.trim() || busy || pending} aria-label="전송" className="grid size-11 shrink-0 place-items-center rounded-full bg-brand text-white disabled:bg-line"><SendHorizontal className="size-5" /></button>
+      </form>
+      <PinSheet open={!!pinFor} onClose={() => setPinFor(null)} purpose="요청을 실행하려면" onPass={async (pin) => { if (pinFor) await confirm(pinFor.msgId, pinFor.idx, pinFor.threadId, true, pin); }} />
     </Page>
   );
 }
@@ -200,13 +101,40 @@ function Avatar() {
 }
 const cardCls = 'overflow-hidden rounded-2xl border border-line bg-paper';
 
+/** 에이전트 답변 텍스트: 빈 줄은 문단, "- "로 시작하는 줄은 목록으로 보여 준다(마크다운 일부만) */
+function TextBubble({ text }: { text: string }) {
+  const LIST = /^\s*[-•*]\s+/;
+  // 연속된 목록 줄은 하나의 목록으로, 나머지 줄은 빈 줄 기준 문단으로 묶는다
+  const groups: { list: boolean; lines: string[] }[] = [];
+  for (const line of text.trim().split('\n')) {
+    const list = LIST.test(line);
+    const last = groups.at(-1);
+    if (!line.trim()) { if (last && !last.list) groups.push({ list: false, lines: [] }); continue; }
+    if (last && last.list === list && (list || last.lines.length)) last.lines.push(line);
+    else groups.push({ list, lines: [line] });
+  }
+  return (
+    <div className={`${bubble} space-y-2`}>
+      {groups.filter((g) => g.lines.length).map((g, i) => g.list ? (
+        <ul key={i} className="space-y-1">{g.lines.map((l, k) => (
+          <li key={k} className="flex gap-2"><span aria-hidden className="mt-[0.65em] size-1 shrink-0 rounded-full bg-sub" /><span className="min-w-0">{l.replace(LIST, '')}</span></li>
+        ))}</ul>
+      ) : <p key={i} className="whitespace-pre-line">{g.lines.join('\n')}</p>)}
+    </div>
+  );
+}
+
 function BlockView({ b, active, onAsk, onGo, onConfirm, onCancel }: {
   b: Block; active: boolean; onAsk: (t: string) => void; onGo: (to: string) => void; onConfirm: () => void; onCancel: () => void;
 }) {
   const { myAccounts } = useBank();
   switch (b.kind) {
+    case 'spendingInsight':
+    case 'forecastInsight':
+    case 'subscriptionInsight':
+      return <InsightCard block={b} />;
     case 'text':
-      return <p className={`${bubble} whitespace-pre-line`}>{b.text}</p>;
+      return <TextBubble text={b.text} />;
 
     case 'accounts':
       return (
@@ -331,6 +259,15 @@ function BlockView({ b, active, onAsk, onGo, onConfirm, onCancel }: {
           ))}
         </div>
       );
+
+    case 'agentConfirm':
+      return <div className={cn(cardCls, 'border-brand/30')}>
+        <p className="px-4 pt-3 text-[16px] font-semibold">요청 내용을 확인해 주세요</p>
+        <div className="px-4 py-2">{Object.entries(b.display).map(([key, value]) => <Row key={key} label={key}>{typeof value === 'number' ? won(value) : value}</Row>)}</div>
+        {b.status === 'pending' || b.status === 'processing'
+          ? <div className="grid grid-cols-2 gap-2 px-4 pb-4"><Button variant="secondary" disabled={b.status === 'processing'} onClick={onCancel}>취소</Button><Button loading={b.status === 'processing'} onClick={onConfirm}>확인하고 실행</Button></div>
+          : <p className="border-t border-line py-3 text-center text-[14px] text-sub">{b.status === 'done' ? '처리됨' : b.status === 'cancelled' ? '취소됨' : '실패'}</p>}
+      </div>;
 
     case 'transferConfirm': {
       const from = myAccounts.find((a) => a.id === b.draft.fromId);

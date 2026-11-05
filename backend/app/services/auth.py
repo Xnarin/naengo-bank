@@ -112,9 +112,37 @@ def update_profile(db: Session, user: User, changes: dict) -> User:
     return user
 
 
-def withdraw(db: Session, user: User, password: str) -> None:
+def change_password(db: Session, user: User, current_password: str, new_password: str) -> None:
     user = find_by_email(db, user.email, lock=True)
-    if not verify_secret(user.password_hash, password):
+    if user is None or user.status != "ACTIVE":
+        raise BankError("AUTH", "사용할 수 없는 계정이에요.", 401)
+    if not verify_secret(user.password_hash, current_password):
+        raise BankError("AUTH", "지금 비밀번호가 맞지 않아요.", 401)
+    if current_password == new_password:
+        raise BankError("AUTH", "지금과 다른 비밀번호를 정해 주세요.")
+    user.password_hash = hash_secret(new_password)
+    user.login_fail_count = 0
+    db.commit()
+
+
+def change_pin(db: Session, user: User, current_pin: str, new_pin: str) -> None:
+    verify_pin(db, user, current_pin)
+    if current_pin == new_pin or len(set(new_pin)) == 1 or new_pin in "0123456789" or new_pin in "9876543210":
+        raise BankError("PIN", "지금과 다른 비밀번호를 정해 주세요. 같은 숫자 반복이나 연속된 숫자는 쓸 수 없어요.")
+    user = find_by_email(db, user.email, lock=True)
+    if user is None or user.status != "ACTIVE":
+        raise BankError("AUTH", "사용할 수 없는 계정이에요.", 401)
+    user.pin = hash_secret(new_pin)
+    db.commit()
+
+
+def withdraw(db: Session, user: User, password: str | None = None, *, pin: str | None = None) -> None:
+    if pin is not None:
+        verify_pin(db, user, pin)
+    user = find_by_email(db, user.email, lock=True)
+    if user is None or user.status != "ACTIVE":
+        raise BankError("AUTH", "사용할 수 없는 계정이에요.", 401)
+    if pin is None and (password is None or not verify_secret(user.password_hash, password)):
         raise BankError("AUTH", "비밀번호가 맞지 않아요.", 401)
     if db.scalar(select(Account.id).where(Account.user_id == user.id, Account.status != "CLOSED").limit(1)):
         raise BankError("CLOSE_BLOCKED", "모든 계좌를 해지한 뒤 탈퇴할 수 있어요.")

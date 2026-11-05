@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.errors import BankError
 from app.models import Account, AccountTransaction, FavoriteRecipient, Transfer, User, now_kst
 from app.security import verify_pin
+from app.services import notifications
 from app.services.accounts import account_usage, assert_allowed, get_owned_account, mask_name
 
 
@@ -98,6 +99,10 @@ def transfer(
                                new_balance=dst.balance, counterparty_name=src_name, counterparty_account=src.account_num,
                                memo=memo, transfer_id=t.id, transaction_at=now),
         ])
+        if src.user_id != dst.user_id:
+            notifications.create(db, dst.user_id, "TRANSFER_IN", f"{src_name}님이 {amount:,}원을 보냈어요.")
+        if auto_transfer_id:
+            notifications.create(db, src.user_id, "AUTO_TRANSFER_SUCCESS", f"자동·예약이체로 {dst_name}님께 {amount:,}원을 보냈어요.")
         if commit:
             db.commit()
         else:

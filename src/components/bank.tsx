@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUpRight, ChevronRight, Delete, LoaderCircle, Nfc, Star } from 'lucide-react';
-import { DEMO, DEMO_PIN, type Account, type Card, type CardStatus, type CardTheme, type Product, type Tx } from '../data/mock';
+import { TEST_ACCOUNTS, DEMO_PIN, type Account, type Card, type CardStatus, type CardTheme, type Product, type Tx } from '../data/mock';
 import { cn, fmtDateTime, fmtDay, fmtTime, groupByDay, maskAccount, signedWon, won } from '../lib/format';
 import { Button, Row, Sheet } from './ui';
 import { recentRecipients, useBank } from '../store';
@@ -211,7 +211,7 @@ export function PinPad({ onComplete, message, error, busy, locked }: {
 }
 
 /** 간편비밀번호 확인 시트. 맞으면 onPass. 계좌를 넘기면 5회 오류 시 그 계좌가 거래중지된다. */
-export function PinSheet({ open, onClose, onPass, accountId, purpose = '송금하려면' }: { open: boolean; onClose: () => void; onPass: () => void; accountId?: string; purpose?: string }) {
+export function PinSheet({ open, onClose, onPass, accountId, purpose = '송금하려면' }: { open: boolean; onClose: () => void; onPass: (pin: string) => void | Promise<void>; accountId?: string; purpose?: string }) {
   const bank = useBank();
   const [error, setError] = useState<{ msg: string; locked: boolean; n: number } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -220,17 +220,16 @@ export function PinSheet({ open, onClose, onPass, accountId, purpose = '송금�
   async function check(pin: string) {
     setBusy(true);
     try {
-      await bank.verifyPin(pin, accountId);
-      onPass();
+      await onPass(pin);
     } catch (e) {
       const code = (e as { code?: string }).code;
-      setError((p) => ({ msg: (e as Error).message, locked: code === 'PIN_LOCKED', n: (p?.n ?? 0) + 1 }));
+      setError((p) => ({ msg: (e as Error).message, locked: code === 'PIN_LOCKED' || code === 'LOGIN_LOCKED', n: (p?.n ?? 0) + 1 }));
     } finally {
       setBusy(false);
     }
   }
 
-  const isDemo = bank.user?.email === DEMO.email;
+  const isDemo = TEST_ACCOUNTS.some((account) => bank.user?.email === account.email);
   return (
     <Sheet open={open} onClose={onClose} title="간편비밀번호">
       <p className="text-[15px] text-sub">{purpose} 비밀번호 6자리를 눌러 주세요.</p>
@@ -254,7 +253,7 @@ export function RecipientPicker({ onPick, excludeId, testChip }: { onPick: (numb
             {own.map((a) => (
               <button type="button" key={a.id} onClick={() => onPick(a.number)} className="h-9 rounded-full bg-surface px-3.5 text-[13px] text-sub hover:bg-line">{shortName(a.name)}</button>
             ))}
-            {testChip && <button type="button" onClick={() => onPick('999-999-999999')} className="h-9 rounded-full border border-dashed border-line px-3.5 text-[13px] text-sub">없는 계좌 테스트</button>}
+            {testChip && <button type="button" onClick={() => onPick('999-9999-9999')} className="h-9 rounded-full border border-dashed border-line px-3.5 text-[13px] text-sub">없는 계좌 테스트</button>}
           </div>
         </>
       )}
@@ -271,7 +270,7 @@ export function RecipientPicker({ onPick, excludeId, testChip }: { onPick: (numb
                   </span>
                   <span className="shrink-0 text-[12px] text-sub">{r.count}번 보냄</span>
                 </button>
-                <button type="button" onClick={() => bank.toggleFavRecipient(r.number)} aria-label={r.fav ? `${r.name} 즐겨찾기 해제` : `${r.name} 즐겨찾기`} aria-pressed={r.fav}
+                <button type="button" onClick={() => void bank.toggleFavRecipient(r.number).catch((e) => bank.toast((e as Error).message))} aria-label={r.fav ? `${r.name} 즐겨찾기 해제` : `${r.name} 즐겨찾기`} aria-pressed={r.fav}
                   className="grid size-9 shrink-0 place-items-center rounded-full hover:bg-surface">
                   <Star className={cn('size-[18px]', r.fav ? 'fill-brand text-brand' : 'text-mute')} />
                 </button>

@@ -1,7 +1,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Request, Response
-from pydantic import AliasChoices, BaseModel, EmailStr, Field
+from pydantic import AliasChoices, BaseModel, EmailStr, Field, model_validator
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -53,7 +53,24 @@ class ProfileIn(BaseModel):
 
 
 class WithdrawIn(BaseModel):
-    password: str = Field(max_length=64)
+    password: str | None = Field(default=None, max_length=64)
+    pin: str | None = Field(default=None, pattern=r"^[0-9]{6}$")
+
+    @model_validator(mode="after")
+    def require_credentials(self):
+        if self.password is None and self.pin is None:
+            raise ValueError("비밀번호 또는 PIN을 입력해 주세요.")
+        return self
+
+
+class PasswordChangeIn(BaseModel):
+    current_password: str = Field(max_length=64)
+    new_password: str = Field(min_length=8, max_length=64)
+
+
+class PinChangeIn(BaseModel):
+    current_pin: str = Field(pattern=r"^[0-9]{6}$")
+    new_pin: str = Field(pattern=r"^[0-9]{6}$")
 
 
 def user_out(user: User) -> dict:
@@ -117,5 +134,17 @@ def update_me(body: ProfileIn, user: User = Depends(current_user), db: Session =
 
 @router.delete("/me", status_code=204)
 def withdraw(body: WithdrawIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    auth.withdraw(db, user, body.password)
+    auth.withdraw(db, user, body.password, pin=body.pin)
+    return Response(status_code=204)
+
+
+@router.put("/me/password", status_code=204)
+def change_password(body: PasswordChangeIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    auth.change_password(db, user, body.current_password, body.new_password)
+    return Response(status_code=204)
+
+
+@router.put("/me/pin", status_code=204)
+def change_pin(body: PinChangeIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    auth.change_pin(db, user, body.current_pin, body.new_pin)
     return Response(status_code=204)

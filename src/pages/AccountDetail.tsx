@@ -18,8 +18,9 @@ const KINDS = [{ key: 'all', label: '전체' }, { key: 'transfer', label: '계�
 type Kind = (typeof KINDS)[number]['key'];
 const ymd = (d: Date) => d.toLocaleDateString('sv-SE'); // YYYY-MM-DD (로컬)
 
-/** 거래 유형: 적요와 상대 계좌로 가른다 */
+/** 서버 거래 유형을 우선하고 이전 표시 데이터도 읽는다. */
 export function txKind(t: Tx): Exclude<Kind, 'all'> {
+  if (t.kind) return t.kind === 'AUTO_TRANSFER' ? 'auto' : t.kind === 'CARD' ? 'card' : t.kind === 'TRANSFER' ? 'transfer' : 'etc';
   if (t.memo?.includes('자동이체')) return 'auto';
   if (t.memo?.startsWith('체크카드')) return 'card';
   return t.counterpartyAccount ? 'transfer' : 'etc';
@@ -200,18 +201,31 @@ function SearchSheet({ open, onClose, value, onApply }: { open: boolean; onClose
   );
 }
 
-const csvCell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+const csvCell = (v: string | number) => {
+  const text = typeof v === 'string' && /^[\s]*[=+\-@]/.test(v) ? `'${v}` : String(v);
+  return `"${text.replace(/"/g, '""')}"`;
+};
 
-/** 거래내역 받기: 기간을 골라 CSV로 바로 받거나 이메일로 신청(Mock) */
+/** 서버에서 조회한 거래를 CSV로 받거나 이메일 발송을 신청한다. */
 function DownloadSheet({ open, onClose, account }: { open: boolean; onClose: () => void; account: Account }) {
-  const { db, user, toast } = useBank();
+  const { db, user, toast, statement } = useBank();
   const [range, setRange] = useState(() => { const t = new Date(), f = new Date(); f.setMonth(f.getMonth() - 3); return { from: ymd(f), to: ymd(t) }; });
   const [email, setEmail] = useState(user?.email ?? '');
   const [sent, setSent] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const validRange = !!range.from && !!range.to && range.from <= range.to;
   const list = db.txs
-    .filter((t) => t.accountId === account.id && t.date >= new Date(`${range.from}T00:00`).toISOString() && t.date <= new Date(`${range.to}T23:59:59`).toISOString())
+    .filter((t) => validRange && t.accountId === account.id && new Date(t.date) >= new Date(`${range.from}T00:00`) && new Date(t.date) <= new Date(`${range.to}T23:59:59.999`))
     .sort((a, b) => a.date.localeCompare(b.date));
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  async function send() {
+    setBusy(true); setError('');
+    try { await statement(account.id, range.from, range.to, email); setSent(email); }
+    catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  }
 
   function download() {
     const rows = [['거래일시', '구분', '유형', '상대', '금액', '거래 후 잔액', '메모', '거래번호'],
@@ -226,7 +240,7 @@ function DownloadSheet({ open, onClose, account }: { open: boolean; onClose: () 
   }
 
   return (
-    <Sheet open={open} onClose={() => { setSent(''); onClose(); }} title="거래내역 받기">
+    <Sheet open={open} onClose={() => { setSent(''); setError(''); onClose(); }} title="거래내역 받기">
       <span className="mb-2 block text-[13px] font-medium text-sub">기간</span>
       <div className="flex items-center gap-2 text-[14px]">
         <input type="date" aria-label="시작일" value={range.from} max={range.to} onChange={(e) => setRange({ ...range, from: e.target.value })} className="h-11 flex-1 rounded-lg border border-line px-2" />
@@ -237,9 +251,10 @@ function DownloadSheet({ open, onClose, account }: { open: boolean; onClose: () 
       <Button full size="lg" variant="secondary" className="mt-4" disabled={!list.length} onClick={download}><Download className="size-4" />CSV 파일로 바로 받기</Button>
 
       <div className="mt-6 border-t border-line pt-5">
-        <Field label="이메일로 받기" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setSent(''); }} error={email && !emailOk ? '올바른 이메일 형식이 아니에요.' : undefined}
-          hint={sent ? <span className="text-success">{sent}로 신청했어요. 실제 서비스라면 몇 분 안에 메일이 와요(프로토타입은 발송하지 않아요).</span> : undefined} />
-        <Button full size="lg" className="mt-3" disabled={!emailOk || !list.length || !!sent} onClick={() => setSent(email)}>이메일로 신청</Button>
+        <Field label="이메일로 받기" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setSent(''); setError(''); }} error={email && !emailOk ? '올바른 이메일 형식이 아니에요.' : undefined}
+          hint={sent ? <span className="text-success">{sent}로 거래내역을 발송했어요.</span> : undefined} />
+        {error && <p role="alert" className="mt-2 text-[13px] text-danger">{error}</p>}
+        <Button full size="lg" className="mt-3" loading={busy} disabled={!emailOk || !validRange || !list.length || !!sent} onClick={() => void send()}>이메일로 신청</Button>
       </div>
     </Sheet>
   );

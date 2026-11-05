@@ -50,7 +50,7 @@ DB는 내부 네트워크의 `db:5432`로 연결하고 외부 포트는 열지 �
 
 ## 카드·자동이체·알림 연결
 
-- 카드: `POST/GET /cards`, `GET/PATCH /cards/{id}`, `POST /cards/{id}/lost|suspend|resume|cancel|reissue`, `GET/POST /cards/{id}/payments`. 변경·해지·재발급은 `{pin}`이 필요합니다. 결제 API는 가상 결제 시연용입니다.
+- 카드: `POST/GET /cards`, `GET/PATCH /cards/{id}`, `POST /cards/{id}/lost|suspend|resume|cancel|reissue`, `GET/POST /cards/{id}/payments`. 변경·해지·재발급은 `{pin}`이 필요합니다. 결제 API는 가상 결제 시연용이며 `idempotency_key`(8~64자)가 필수입니다. 같은 카드에서 같은 키·내용은 최초 결과를 반환하고, 같은 키로 내용을 바꾸면 409를 반환합니다.
 - 자동이체: `POST /auto-transfers`는 `{from_account_id, to_account_num, amount, pin, cycle, ...}`를 받습니다. ONCE는 시간대가 포함된 `run_at`, WEEKLY는 `run_day=0~6`, MONTHLY는 `run_day=1~31`과 선택 `start_date/end_date`를 보냅니다. 목록은 `GET /auto-transfers?status=ACTIVE`, 취소는 `DELETE /auto-transfers/{id}`입니다.
 - 정기 이체는 기본 KST 09시이고 없는 날은 말일로 보정합니다. 스케줄러는 1분마다 확인하며 서버 시작 시에도 지난 일정을 확인합니다. 종료일이 지난 일정은 실행하지 않습니다. 단일 API 프로세스를 기준으로 합니다.
 - 알림: `GET /notifications`는 `{items, unread}`, `POST /notifications/read-all`은 204입니다. 카드 결제·자동이체 실패·이상 접속을 저장합니다.
@@ -59,7 +59,7 @@ DB는 내부 네트워크의 `db:5432`로 연결하고 외부 포트는 열지 �
 
 Claude 연결 시 `from app.services import cards`를 사용합니다. 카드 끝자리 표시·매칭은 `cards.last4(card)`, 직렬화는 `cards.card_out(card)`, PIN 확인 후 상태 변경은 `cards.set_card_status(db, user_id, card_id, status)`입니다. 암호문 `card.card_number`에서 직접 끝자리를 자르면 안 됩니다.
 
-AI 확인은 `/agent/confirm`, 일반 화면 송금은 `/transfers`로 실행합니다. AI 승인 한 번에 두 API를 모두 호출하지 않습니다. 에이전트·프론트 파일은 이번 작업에서 수정하지 않았고, 실행 중 컨테이너도 유지했습니다. 전체 통합 재빌드는 양쪽 연결 작업 완료 후 진행합니다.
+AI 확인은 `/agent/confirm`, 일반 화면 송금은 `/transfers`로 실행합니다. AI 승인 한 번에 두 API를 모두 호출하지 않습니다. 프론트와 에이전트를 연결하고 전체 Docker 이미지를 재빌드했습니다. 현재 8001 API와 5173 앱이 같은 PostgreSQL 데이터를 사용합니다.
 
 은행 테스트 82개 통과. PostgreSQL 임시 스키마에서 동시 카드 결제·중복 회차 실행·처리 도중 rollback·카드/자동이체/알림 API를 확인했고, 검사 스키마는 제거했습니다. 실제 카드사·푸시 연동은 범위 밖입니다.
 

@@ -16,17 +16,12 @@ const STATUS = { active: { label: '진행 중', cls: 'text-success' }, stopped: 
 export function AutoTransfers() {
   const bank = useBank();
   const [stopId, setStopId] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const mine = bank.db.autoTransfers.filter((x) => x.owner === bank.user?.email);
   const active = mine.filter((x) => x.status === 'active');
   const past = mine.filter((x) => x.status !== 'active');
   const accName = (id: string) => shortName(bank.db.accounts.find((a) => a.id === id)?.name ?? '');
   const toLabel = (x: AutoTransfer) => { const own = bank.myAccounts.find((a) => a.number === x.toNumber); return own ? `내 ${shortName(own.name)}` : `${x.toName}님`; };
 
-  async function runNow(id: string) {
-    setBusy(id);
-    try { await bank.runAutoNow(id); bank.toast('자동이체를 한 번 실행했어요'); } catch (e) { bank.toast((e as Error).message); } finally { setBusy(null); }
-  }
 
   return (
     <Page back title="자동이체" footer={<Link to="/auto-transfers/new" className="flex h-14 w-full items-center justify-center gap-1.5 rounded-full bg-brand text-[16px] font-semibold text-white hover:bg-brand-dark"><Plus className="size-5" />자동이체 등록</Link>}>
@@ -50,7 +45,6 @@ export function AutoTransfers() {
                 </p>
               )}
               <div className="mt-3 flex gap-2">
-                <Button size="sm" variant="outline" loading={busy === x.id} onClick={() => runNow(x.id)}>지금 한 번 실행 <span className="font-normal text-sub">· 체험용</span></Button>
                 <Button size="sm" variant="ghost" className="text-danger" onClick={() => setStopId(x.id)}>해지</Button>
               </div>
             </li>
@@ -75,7 +69,7 @@ export function AutoTransfers() {
         <p className="text-[15px] leading-relaxed text-sub">해지하면 다음 회차부터 보내지 않아요. 이미 보낸 돈은 그대로예요.</p>
         <div className="mt-6 grid grid-cols-2 gap-2">
           <Button size="lg" variant="secondary" onClick={() => setStopId(null)}>취소</Button>
-          <Button size="lg" variant="navy" onClick={() => { bank.stopAutoTransfer(stopId!); setStopId(null); bank.toast('자동이체를 해지했어요'); }}>해지하기</Button>
+          <Button size="lg" variant="navy" onClick={async () => { try { await bank.stopAutoTransfer(stopId!); setStopId(null); bank.toast('자동이체를 해지했어요'); } catch (e) { bank.toast((e as Error).message); } }}>해지하기</Button>
         </div>
       </Sheet>
     </Page>
@@ -110,13 +104,14 @@ export function NewAutoTransfer() {
     } catch (e) { setLookup({ loading: false, error: (e as Error).message }); }
   }
 
-  async function save() {
-    setPin(false); setBusy(true); setError('');
+  async function save(pinValue: string) {
+    setBusy(true); setError('');
     try {
-      await bank.createAutoTransfer({ fromId: f.fromId, toNumber: to!.number, amount, cycle: f.cycle, day: f.day, startDate: f.startDate, endDate: f.noEnd ? undefined : f.endDate, memo: f.memo.trim() || undefined });
+      await bank.createAutoTransfer({ fromId: f.fromId, toNumber: to!.number, amount, cycle: f.cycle, day: f.day, startDate: f.startDate, endDate: f.noEnd ? undefined : f.endDate, memo: f.memo.trim() || undefined }, pinValue);
+      setPin(false);
       bank.toast('자동이체를 등록했어요');
       navigate('/auto-transfers', { replace: true });
-    } catch (e) { setError((e as Error).message); setConfirm(true); } finally { setBusy(false); }
+    } catch (e) { if (['PIN', 'PIN_LOCKED', 'AUTH', 'LOGIN_LOCKED'].includes((e as { code?: string }).code ?? '')) throw e; setPin(false); setError((e as Error).message); setConfirm(true); } finally { setBusy(false); }
   }
 
   if (!accounts.length) return <Page back title="자동이체 등록"><EmptyState icon={Repeat} title="출금할 계좌가 없어요" desc="정상 상태인 내 계좌가 있어야 해요." /></Page>;
@@ -134,10 +129,10 @@ export function NewAutoTransfer() {
       <label className="mt-6 block">
         <span className="mb-2 block text-[13px] font-medium text-sub">받는 계좌 (내금고)</span>
         <span className="flex gap-2">
-          <input inputMode="numeric" placeholder="123-456-789012" value={f.acct} aria-invalid={!!lookup.error}
+          <input inputMode="numeric" placeholder="123-4567-8901" value={f.acct} aria-invalid={!!lookup.error}
             onChange={(e) => { set({ acct: formatAccountInput(e.target.value) }); setTo(null); setLookup({ loading: false, error: '' }); }}
             className={cn('num h-13 min-w-0 flex-1 rounded-xl border px-4 text-[17px] outline-none focus:border-brand', lookup.error ? 'border-danger' : 'border-line')} />
-          <Button variant="navy" className="h-13" onClick={() => verify()} loading={lookup.loading} disabled={f.acct.length !== 14}>확인</Button>
+          <Button variant="navy" className="h-13" onClick={() => verify()} loading={lookup.loading} disabled={f.acct.length !== 13}>확인</Button>
         </span>
       </label>
       {lookup.error && <p role="alert" className="mt-2 text-[13px] text-danger">{lookup.error}</p>}

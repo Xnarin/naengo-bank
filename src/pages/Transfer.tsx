@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CalendarClock, Check, CircleAlert, CircleCheck, Landmark, Wallet } from 'lucide-react';
 import { Button, EmptyState, Page, Row, Steps } from '../components/ui';
@@ -70,18 +70,23 @@ export function Transfer() {
     }
   }
 
-  async function send() {
+  const request = useRef({ fingerprint: '', key: '' });
+  async function send(pin: string) {
     if (!from || !recipient) return;
+    const fingerprint = JSON.stringify({ fromId: from.id, toNumber: recipient.number, amount, when, runAt });
+    if (request.current.fingerprint !== fingerprint) request.current = { fingerprint, key: crypto.randomUUID() };
     setSending(true);
     try {
       if (when === 'later') {
-        const r = await bank.scheduleTransfer({ fromId: from.id, toNumber: recipient.number, amount, runAt: new Date(runAt).toISOString() });
+        const r = await bank.scheduleTransfer({ fromId: from.id, toNumber: recipient.number, amount, runAt: new Date(runAt).toISOString() }, pin);
         setScheduledAt(r.runAt);
       } else {
-        setResult(await bank.transfer({ fromId: from.id, toNumber: recipient.number, amount }));
+        setResult(await bank.transfer({ fromId: from.id, toNumber: recipient.number, amount }, pin, request.current.key));
       }
-      setStep(4);
+      setPinOpen(false); setStep(4);
     } catch (e) {
+      if (e instanceof BankError && ['PIN', 'PIN_LOCKED', 'AUTH', 'LOGIN_LOCKED'].includes(e.code)) throw e;
+      setPinOpen(false);
       setFail(e instanceof BankError ? e : new BankError('NETWORK', '알 수 없는 오류가 발생했어요.'));
       setStep(5);
     } finally {
@@ -144,7 +149,7 @@ export function Transfer() {
           <span className="grid size-16 place-items-center rounded-full bg-danger-soft text-danger"><CircleAlert className="size-8" /></span>
           <p className="mt-6 font-display text-[22px] font-bold">{copy.title}</p>
           <p className="mt-2 text-[15px] text-sub">{fail.message}</p>
-          <p className="mt-6 text-[13px] text-sub">송금이 실행되지 않았고, 잔액은 그대로예요.</p>
+          <p className="mt-6 text-[13px] text-sub">{fail.code === 'NETWORK' ? '통신이 끊겨 결과가 아직 확인되지 않았어요. 거래내역을 먼저 확인해 주세요.' : '송금이 실행되지 않았고, 잔액은 그대로예요.'}</p>
         </div>
       </Page>
     );
@@ -194,12 +199,12 @@ export function Transfer() {
           <label className="mt-6 block">
             <span className="mb-2 block text-[13px] font-medium text-sub">계좌번호</span>
             <span className="flex gap-2">
-              <input inputMode="numeric" placeholder="123-456-789012" value={acctInput}
+              <input inputMode="numeric" placeholder="123-4567-8901" value={acctInput}
                 onChange={(e) => { setAcctInput(formatAccountInput(e.target.value)); setRecipient(null); setLookup({ loading: false }); }}
-                onKeyDown={(e) => e.key === 'Enter' && acctInput.length === 14 && verify()}
+                onKeyDown={(e) => e.key === 'Enter' && acctInput.length === 13 && verify()}
                 aria-invalid={!!lookup.error}
                 className={cn('num h-13 min-w-0 flex-1 rounded-xl border px-4 text-[17px] outline-none focus:border-brand', lookup.error ? 'border-danger' : 'border-line')} />
-              <Button variant="navy" className="h-13" onClick={verify} loading={lookup.loading} disabled={acctInput.length !== 14}>확인</Button>
+              <Button variant="navy" className="h-13" onClick={verify} loading={lookup.loading} disabled={acctInput.length !== 13}>확인</Button>
             </span>
           </label>
 
@@ -278,7 +283,7 @@ export function Transfer() {
             </div>
           )}
           <p className="mt-4 text-[13px] text-sub">가상 송금이에요. 실제 돈은 이동하지 않아요.</p>
-          <PinSheet accountId={from.id} open={pinOpen} onClose={() => setPinOpen(false)} onPass={() => { setPinOpen(false); send(); }} />
+          <PinSheet accountId={from.id} open={pinOpen} onClose={() => setPinOpen(false)} onPass={send} />
         </>
       )}
     </Page>

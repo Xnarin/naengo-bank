@@ -45,10 +45,15 @@
 
 Docker 환경: 루트 `.env.docker` 사용 (무작위 DB 비밀번호·JWT 키 생성, Git 제외). DB는 내부 네트워크만 사용하고 데이터는 `postgres_data` 볼륨에 보관한다. Docker Desktop의 오래된 소켓 문제는 `Docker/run`, `docker-secrets-engine` 임시 폴더를 백업한 뒤 재시작해 복구했다. 사용자명·프로필 경로 변경 없음. 실제 HTTP 검사로 개발 DB에 `docker-check-…@example.com` 테스트 회원 1명과 기본 통장·원장 1건을 생성했다.
 
-### 남은 통합 작업
-- Claude 담당: 프론트의 Mock 교체, JWT·thread_id·confirm 연동, 카드 끝자리/상태 변경을 공통 서비스로 교체.
-- 전체 통합 이미지 재빌드 및 화면→실제 DB 흐름 검증. 이번 Phase 4~6도 임시 컨테이너에서 새 파일만 연결해 검사했으며, 실행 중 API는 아직 재빌드하지 않음.
-- 실제 CSV 첨부메일 수신 확인. 스케줄러는 단일 API 프로세스 운영을 전제로 함.
+### 프론트 통합 완료 (2026-11-05)
+- `src/api/http.ts`의 `/api` 공통 클라이언트와 `src/api/bank.ts` 응답 변환을 사용하며, `src/store.tsx`는 실제 API 조회/변경만 수행한다. 가상 은행 데이터는 PostgreSQL에 저장한다.
+- 로그인 JWT 복원·만료·무활동 로그아웃, 실제 약관/인증/개설, 일반 송금·예약/자동이체, 카드·알림·거래내역 이메일 연결 완료.
+- AI는 thread_id와 확인 블록을 유지하고 `/agent/confirm`에 PIN을 직접 전달한다. 카드 표시/매칭/상태 변경도 공통 카드 서비스로 교체 완료.
+- `/me/password`, `/me/pin` 추가. `/me` 탈퇴는 PIN과 기존 password 요청을 모두 지원한다.
+- 전체 Docker 이미지를 재빌드해 8001 API에 반영했다. 프론트는 5173 Vite의 `/api` 프록시로 연결한다.
+- 프론트 빌드 및 은행 테스트 **87개 통과**. 실제 브라우저에서 로그인·계좌 조회·일반/AI PIN 송금·카드 결제·재로드 후 서버 데이터 유지 확인. 프록시로 자동이체 등록·취소와 알림 읽음 확인.
+- 개발용 체험 계정 시드는 `backend/tests/seed_demo.py` (수동 실행, DEVELOPMENT 환경만). 실제 이메일은 발송하지 않음.
+- 남은 검증: 신규 가입부터 탈퇴까지 모든 화면 경계 사례, 실제 CSV 첨부메일 수신. 스케줄러와 AI 대화 저장은 단일 API 프로세스 기준. 운영용 프론트 호스팅에는 `/api` 역방향 프록시 필요.
 
 ## 2. 결정 사항
 
@@ -192,8 +197,8 @@ tests/               pytest, SQLite 메모리 DB
 - [ ] 대화 맥락은 프론트가 보내는 `context`(ChatContext)로 유지. 서버 체크포인터 불필요
 - **완료 조건**: 남의 계좌 조회 요청 거부, 적요에 넣은 지시문이 동작을 바꾸지 않음, 확인 없이 송금되는 경로 없음
 
-### Phase 8. 프론트 연결 (백엔드 범위 밖, 참고)
-`src/store.tsx`의 각 함수를 6장 API 호출로 바꾼다. 응답 snake_case → 프론트 타입 변환은 API 클라이언트 한 곳에서.
+### Phase 8. 프론트 연결 ✅ (2026-11-05)
+`src/store.tsx` 각 함수를 실제 API로 교체했고, 응답 변환은 `src/api/bank.ts`, HTTP/JWT/오류 처리는 `src/api/http.ts`에서 수행한다. 일반 화면·AI·서버 DB의 주요 흐름을 확인했다.
 
 ## 5. 에러 코드
 
@@ -294,7 +299,7 @@ tests/               pytest, SQLite 메모리 DB
 | POST | `/cards/{id}/reissue` | 🔒 | `{pin}` | 새 카드 | D1.4 |
 | POST | `/cards/{id}/cancel` | 🔒 | `{pin}` | 해지 카드 | 계좌 해지 제약 해소 |
 | GET | `/cards/{id}/payments?month=YYYY-MM` | 🔒 | | `[결제]` | D1.3 |
-| POST | `/cards/{id}/payments` | 🔒 | `{amount, place, category, overseas?}` | 결제 (시뮬레이션, D15) | D1.5 |
+| POST | `/cards/{id}/payments` | 🔒 | `{idempotency_key, amount, place, category, overseas?}` | 결제 (시뮬레이션, D15), 같은 키 재시도 시 중복 출금 방지 | D1.5 |
 
 카드 응답: `{id, account_id, last4, expiry_date, card_network, daily_limit, overseas_enabled, status, created_at}` — 전체 카드번호는 어떤 응답에도 넣지 않는다.
 

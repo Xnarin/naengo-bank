@@ -28,6 +28,7 @@ class UpdateIn(PinIn):
 
 
 class PaymentIn(BaseModel):
+    idempotency_key: str = Field(min_length=8, max_length=64)
     amount: int = Field(gt=0, strict=True)
     place: str = Field(min_length=1, max_length=100)
     category: str | None = Field(default=None, max_length=30)

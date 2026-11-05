@@ -17,6 +17,8 @@ from sqlalchemy.orm import Session
 from app.errors import BankError
 from app.models import KST, Account, AccountProduct, AccountTransaction, Card, CardPayment, FavoriteRecipient, User
 from app.services import accounts as acc_svc
+from app.services import cards as card_svc
+from app.services import insights
 
 
 def mask_num(num: str) -> str:
@@ -93,17 +95,11 @@ def my_cards(db: Session, user_id: uuid.UUID) -> list[Card]:
 
 
 def card_label(c: Card) -> str:
-    return f"체크카드(끝자리 {c.card_number[-4:]})"
+    return f"체크카드(끝자리 {card_svc.last4(c)})"
 
 
 def set_card_status(db: Session, user_id: uuid.UUID, card_id: uuid.UUID, status: str) -> Card:
-    # ponytail: 카드 서비스(app/services/cards.py)가 아직 없어 여기서 상태만 바꾼다. 서비스가 생기면 그 함수로 교체
-    card = db.scalar(select(Card).join(Account, Card.account_id == Account.id).where(Card.id == card_id, Account.user_id == user_id))
-    if card is None:
-        raise BankError("INVALID_CARD", "카드를 찾을 수 없어요.", 404)
-    card.status = status
-    db.commit()
-    return card
+    return card_svc.set_card_status(db, user_id, card_id, status)
 
 
 def _period(start: str | None, end: str | None) -> tuple[date | None, date | None]:
@@ -165,4 +161,25 @@ def make_tools(db: Session, user_id: uuid.UUID):
         return {"합계": sum(p.amount for p in pays), "건수": len(pays), "카테고리별": by_cat,
                 "최근": [{"날짜": f"{p.request_at:%m-%d}", "가맹점": p.place, "금액": p.amount} for p in pays[:5]]}
 
-    return [list_accounts, get_transactions, get_limits, card_spending]
+    @tool
+    def spending_analysis(month: str | None = None) -> dict:
+        """소비 패턴·카테고리별 지출·전월 대비 증감 원인을 코드로 계산한다.
+        month: YYYY-MM. 없으면 이번 달. 이번 달은 전월 같은 일자까지 비교한다.
+        카드 소비와 용도 미확정 이체를 분리하며 내 계좌 사이 이체는 제외한다."""
+        return insights.spending_analysis(db, user_id, month)
+
+    @tool
+    def balance_forecast(month: str | None = None) -> dict:
+        """이번 달 또는 다음 달 예상 지출·월말 잔액·부족액·하루 출금 예산을 코드로 계산한다.
+        '돈이 부족할 것 같은데 왜/어떻게 하지', '다음달 얼마 쓸까'에 사용한다.
+        month: YYYY-MM. 없으면 이번 달. 데이터부족이면 예측 금액을 만들지 않는다.
+        미래 입금 0원 가정, 등록된 자동이체와 정기결제 후보를 반영한 시나리오이다."""
+        return insights.balance_forecast(db, user_id, month)
+
+    @tool
+    def detect_subscriptions() -> dict:
+        """최근 180일 카드 원장에서 3회 이상 반복된 월 정기결제·구독 후보를 코드로 찾는다.
+        같은 가맹점·25~35일 간격·금액 차이 10% 이내. 실제 구독 확정이나 해지가 아니다."""
+        return insights.detect_subscriptions(db, user_id)
+
+    return [list_accounts, get_transactions, get_limits, card_spending, spending_analysis, balance_forecast, detect_subscriptions]

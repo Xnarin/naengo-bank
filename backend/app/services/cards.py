@@ -6,10 +6,11 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.errors import BankError
-from app.models import Account, AccountTransaction, Card, CardPayment, User, now_kst
+from app.models import KST, Account, AccountTransaction, Card, CardPayment, User, now_kst
 from app.security import verify_pin
 from app.services.accounts import assert_allowed, get_owned_account
 from app.services import notifications
+from app.services.verification import aware
 
 
 def cipher() -> Fernet:
@@ -125,7 +126,10 @@ def reissue(db: Session, user_id, card_id) -> dict:
 
 
 def payment_out(item: CardPayment) -> dict:
-    return {k: getattr(item, k) for k in ("id", "card_id", "amount", "place", "category", "request_at", "complete_at")}
+    return {k: getattr(item, k) for k in ("id", "card_id", "amount", "place", "category")} | {
+        "request_at": aware(item.request_at).astimezone(KST),
+        "complete_at": aware(item.complete_at).astimezone(KST) if item.complete_at else None,
+    }
 
 
 def payments(db: Session, user_id, card_id, month: str | None) -> list[dict]:
@@ -142,11 +146,19 @@ def payments(db: Session, user_id, card_id, month: str | None) -> list[dict]:
     return [payment_out(p) for p in db.scalars(query.order_by(CardPayment.request_at.desc(), CardPayment.id.desc()))]
 
 
-def pay(db: Session, user_id, card_id, amount: int, place: str, category: str | None, overseas: bool) -> dict:
+def pay(db: Session, user_id, card_id, amount: int, place: str, category: str | None, overseas: bool, idempotency_key: str) -> dict:
     try:
+        if not isinstance(idempotency_key, str) or not 8 <= len(idempotency_key) <= 64:
+            raise BankError("INVALID_PAYMENT", "결제 요청 번호를 확인해 주세요.")
         if type(amount) is not int or amount <= 0:
             raise BankError("INVALID_AMOUNT", "결제 금액을 확인해 주세요.")
         card = get_owned_card(db, user_id, card_id, lock=True)
+        done = db.scalar(select(CardPayment).where(CardPayment.card_id == card.id, CardPayment.idempotency_key == idempotency_key))
+        if done:
+            if (done.amount, done.place, done.category, done.overseas) != (amount, place, category, overseas):
+                raise BankError("PAYMENT_CONFLICT", "이미 사용한 요청 번호예요. 원래 결제 내용을 확인해 주세요.", 409)
+            balance = db.scalar(select(AccountTransaction.new_balance).where(AccountTransaction.card_payment_id == done.id))
+            return payment_out(done) | {"new_balance": balance}
         account = db.get(Account, card.account_id)
         assert_allowed(account, "WITHDRAW")
         now = now_kst()
@@ -162,7 +174,8 @@ def pay(db: Session, user_id, card_id, amount: int, place: str, category: str | 
         if account.balance < amount:
             raise BankError("INSUFFICIENT", "계좌 잔액이 부족해요.")
         account.balance -= amount
-        item = CardPayment(card_id=card.id, amount=amount, place=place, category=category, request_at=now, complete_at=now)
+        item = CardPayment(card_id=card.id, amount=amount, place=place, category=category, overseas=overseas,
+                           idempotency_key=idempotency_key, request_at=now, complete_at=now)
         db.add(item)
         db.flush()
         db.add(AccountTransaction(account_id=account.id, card_payment_id=item.id, transaction_type="CARD",

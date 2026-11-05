@@ -1,10 +1,12 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import { PinPad } from '../components/bank';
 import { Button, Checkbox, Field, Logo, Page, Steps } from '../components/ui';
-import { DEMO, DEMO_PIN } from '../data/mock';
+import { DEMO_PIN, TEST_ACCOUNTS } from '../data/mock';
 import { EMAIL_RE, useBank } from '../store';
+import { api } from '../api/http';
+import type { Term } from '../api/bank';
 
 export const PW_RE = /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
 const PW_HINT = '영문, 숫자, 특수문자를 포함해 8자 이상 입력해 주세요.';
@@ -30,7 +32,7 @@ export function Login() {
   const loc = useLocation();
   const state = loc.state as { from?: string; signedUp?: string; reset?: string } | null;
   const [mode, setMode] = useState<'pin' | 'email'>(deviceUser && !state?.signedUp && !state?.reset ? 'pin' : 'email');
-  if (user) return <Navigate to={state?.from ?? '/'} replace />;
+  if (user) return <Navigate to="/" replace />;
   return mode === 'pin' && deviceUser ? <PinLogin onEmail={() => setMode('email')} /> : <EmailLogin onPin={deviceUser ? () => setMode('pin') : undefined} />;
 }
 
@@ -54,7 +56,7 @@ function PinLogin({ onEmail }: { onEmail: () => void }) {
         <Brand />
         <h1 className="mt-10 font-display text-[24px] leading-snug font-bold"><span className="text-brand">{deviceUser.name}</span>님,<br />간편비밀번호를 눌러 주세요</h1>
         <PinPad onComplete={go} error={error} busy={busy} locked={error?.locked || deviceUser.locked}
-          message={deviceUser.locked ? '로그인이 잠긴 계정이에요.' : deviceUser.email === DEMO.email ? <>예시 비밀번호 <span className="num font-semibold">{DEMO_PIN}</span></> : ' '} />
+          message={deviceUser.locked ? '로그인이 잠긴 계정이에요.' : TEST_ACCOUNTS.some((account) => account.email === deviceUser.email) ? <>예시 비밀번호 <span className="num font-semibold">{DEMO_PIN}</span></> : ' '} />
         {(error?.locked || deviceUser.locked) && <Link to="/reset-password" className="mt-3 text-center text-[14px] font-semibold text-brand">비밀번호 재설정으로 잠금 풀기</Link>}
         <div className="mt-auto flex justify-center gap-4 pt-8 text-[14px] text-sub">
           <button onClick={onEmail} className="underline-offset-2 hover:underline">이메일로 로그인</button>
@@ -89,7 +91,7 @@ function EmailLogin({ onPin }: { onPin?: () => void }) {
     setLoading(true);
     try {
       await login(email.trim(), pw);
-      navigate(state?.from ?? '/', { replace: true });
+      navigate('/', { replace: true });
     } catch (err) {
       setFail({ msg: (err as Error).message, locked: (err as { code?: string }).code === 'LOGIN_LOCKED' });
       setLoading(false);
@@ -118,9 +120,10 @@ function EmailLogin({ onPin }: { onPin?: () => void }) {
 
         <div className="mt-auto pt-10">
           <Button type="submit" size="lg" full loading={loading}>로그인</Button>
-          {onPin
-            ? <button type="button" onClick={onPin} className="mt-3 w-full py-2 text-[14px] text-sub underline-offset-2 hover:underline">간편비밀번호로 로그인</button>
-            : <button type="button" onClick={() => { setEmail(DEMO.email); setPw(DEMO.password); }} className="mt-3 w-full py-2 text-[14px] text-sub underline-offset-2 hover:underline">데모 계정 정보 채우기</button>}
+          {onPin && <button type="button" onClick={onPin} className="mt-3 w-full py-2 text-[14px] text-sub underline-offset-2 hover:underline">간편비밀번호로 로그인</button>}
+          <div className="mt-3 flex justify-center gap-4">
+            {TEST_ACCOUNTS.map((account, index) => <button key={account.email} type="button" onClick={() => { setEmail(account.email); setPw(account.password); }} className="py-2 text-[14px] text-sub underline-offset-2 hover:underline">테스트 {index + 1} 정보 채우기</button>)}
+          </div>
           <p className="mt-4 text-center text-[14px] text-sub">
             아직 회원이 아니신가요? <Link to="/signup" className="font-semibold text-brand">회원가입</Link>
           </p>
@@ -161,7 +164,7 @@ export function EmailVerify({ email, onEmail, verified, onVerified, send, label 
         <div className="rise">
           <Field label="인증번호 6자리" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={code}
             onChange={(e) => { setCode(e.target.value.replace(/\D/g, '')); setError(''); }} error={error || undefined}
-            hint={<>메일 대신 예시로 보여 드려요: <span className="num font-semibold text-ink">{sent}</span></>}
+            hint={sent === 'sent' ? '이메일로 받은 인증번호를 입력해 주세요.' : <>개발용 인증번호: <span className="num font-semibold text-ink">{sent}</span></>}
             right={<Button type="button" className="h-13" onClick={doConfirm} loading={busy} disabled={code.length !== 6}>확인</Button>} />
         </div>
       )}
@@ -169,15 +172,13 @@ export function EmailVerify({ email, onEmail, verified, onVerified, send, label 
   );
 }
 
-const TERMS = [
-  { id: 'service', label: '[필수] 내금고 서비스 이용약관', required: true },
-  { id: 'privacy', label: '[필수] 개인정보 수집·이용 동의', required: true },
-  { id: 'marketing', label: '[선택] 혜택·이벤트 알림 받기', required: false },
-] as const;
-
 /** 회원가입: 약관 → 이메일 인증(이름) → 비밀번호 → 간편비밀번호 */
 export function Signup() {
   const { signup, sendSignupCode } = useBank();
+  const [terms, setTerms] = useState<Term[]>([]);
+  const [termsError, setTermsError] = useState('');
+  const loadTerms = () => api<Term[]>('/terms?category=SIGNUP').then((data) => { setTerms(data); setTermsError(''); }).catch((e) => setTermsError((e as Error).message));
+  useEffect(() => { void loadTerms(); }, []);
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [agree, setAgree] = useState<Record<string, boolean>>({});
@@ -190,7 +191,7 @@ export function Signup() {
   const [loading, setLoading] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
 
-  const allRequired = TERMS.every((t) => !t.required || agree[t.id]);
+  const allRequired = terms.length > 0 && terms.every((t) => !t.required || agree[t.id]);
   const nameErr = !f.name.trim() ? '이름을 입력해 주세요.' : !/^[가-힣a-zA-Z\s]{2,20}$/.test(f.name.trim()) ? '한글 또는 영문 2~20자로 입력해 주세요.' : undefined;
   const errs = {
     pw: !PW_RE.test(f.pw) ? PW_HINT : undefined,
@@ -206,7 +207,7 @@ export function Signup() {
     if (p !== pin1) { setPin1(null); setPinErr((e) => ({ msg: '두 번 입력한 비밀번호가 달라요. 처음부터 다시 눌러 주세요.', n: (e?.n ?? 0) + 1 })); return; }
     setLoading(true); setFailMsg('');
     try {
-      await signup({ name: f.name.trim(), email: f.email.trim(), password: f.pw, pin: p, marketing: !!agree.marketing });
+      await signup({ name: f.name.trim(), email: f.email.trim(), password: f.pw, pin: p, marketing: terms.some((t) => !t.required && agree[t.id]), agreedTermIds: terms.filter((t) => agree[t.id]).map((t) => t.id) });
       navigate('/login', { replace: true, state: { signedUp: f.email.trim() } });
     } catch (err) {
       setFailMsg((err as Error).message); setPin1(null); setLoading(false);
@@ -227,11 +228,13 @@ export function Signup() {
       {step === 0 && (
         <>
           <h2 className="font-display text-[22px] font-bold">약관에 동의해 주세요</h2>
+          {termsError && <><Alert>{termsError}</Alert><Button variant="secondary" onClick={() => void loadTerms()}>다시 불러오기</Button></>}
+          {!terms.length && !termsError && <p className="mt-4 text-[14px] text-sub">약관을 불러오고 있어요.</p>}
           <div className="mt-6 border-b border-line pb-2">
-            <Checkbox strong checked={TERMS.every((t) => agree[t.id])} onChange={(v) => setAgree(Object.fromEntries(TERMS.map((t) => [t.id, v])))}>전체 동의</Checkbox>
+            <Checkbox strong checked={terms.every((t) => agree[t.id])} onChange={(v) => setAgree(Object.fromEntries(terms.map((t) => [t.id, v])))}>전체 동의</Checkbox>
           </div>
           <div className="mt-2">
-            {TERMS.map((t) => <Checkbox key={t.id} checked={!!agree[t.id]} onChange={(v) => setAgree({ ...agree, [t.id]: v })}>{t.label}</Checkbox>)}
+            {terms.map((t) => <Checkbox key={t.id} checked={!!agree[t.id]} onChange={(v) => setAgree({ ...agree, [t.id]: v })}>{t.required ? '[필수] ' : '[선택] '}{t.title}</Checkbox>)}
           </div>
           <p className="mt-4 text-[13px] text-sub">프로토타입용 예시 약관이에요. 선택 항목은 동의하지 않아도 가입할 수 있어요.</p>
         </>

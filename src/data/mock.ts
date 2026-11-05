@@ -1,9 +1,9 @@
 // 모든 계좌·거래·상품·카드 정보는 프로토타입용 가상(예시) 데이터입니다.
 
 export interface User {
-  name: string; email: string; password: string;
+  name: string; email: string; password?: string;
   /** 간편비밀번호 6자리 */
-  pin: string;
+  pin?: string;
   marketing?: boolean;
   /** 비밀번호·간편비밀번호 연속 오류 횟수. 5회면 locked */
   loginFails?: number;
@@ -21,6 +21,7 @@ export interface Account {
   limits: { daily: number; monthly: number };
   favorite?: boolean;
   closedAt?: string;
+  usage?: { today: number; month: number };
 }
 export const DEFAULT_LIMITS = { daily: 1_000_000, monthly: 5_000_000 };
 /** 한도 변경 시 넘을 수 없는 최대값(예시) */
@@ -28,6 +29,7 @@ export const MAX_LIMITS = { daily: 10_000_000, monthly: 50_000_000 };
 export interface Tx {
   id: string; accountId: string; date: string; type: 'in' | 'out'; amount: number;
   counterparty: string; counterpartyAccount?: string; memo?: string; balanceAfter: number;
+  kind?: string;
 }
 export type CardTheme = 'navy' | 'sky' | 'slate';
 /** 사용 중 / 일시정지(본인이 잠금, 해제 가능) / 분실 신고(해제 불가, 재발급) / 해지 */
@@ -83,12 +85,14 @@ export interface DB {
   autoTransfers: AutoTransfer[];
   /** 사용자별 알림 마지막 확인 시각 */
   readAt: Record<string, string>;
+  recipients?: { number: string; name: string; count: number; last: string; fav: boolean }[];
 }
 
 /** 프로토타입 데모 로그인 계정 (테스트 전용) */
-export const DEMO = { email: 'demo@naengo.bank', password: 'naengo1234!' };
+export const DEMO = { email: 'test1@example.com', password: 'Test1234!' };
+export const TEST_ACCOUNTS = [DEMO, { ...DEMO, email: 'test2@example.com' }];
 /** 송금 간편비밀번호 (예시 값, 모든 체험 계정 공통) */
-export const DEMO_PIN = '123456';
+export const DEMO_PIN = '493827';
 export const BANK_NAME = '내금고';
 
 export const products: Product[] = [

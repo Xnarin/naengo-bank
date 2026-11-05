@@ -65,13 +65,26 @@ def main():
             with Session(isolated) as db:
                 issued = cards.issue(db, owner, source, limit, False)
             card_id = uuid.UUID(issued["id"]) if isinstance(issued["id"], str) else issued["id"]
-            results = parallel(lambda db: (cards.pay(db, owner, card_id, 400, "test merchant", "test", False) and "ok"))
+            results = parallel(lambda db: (cards.pay(db, owner, card_id, 400, "test merchant", "test", False, uuid.uuid4().hex) and "ok"))
             assert sorted(results) == sorted(["ok", expected]), results
             with Session(isolated) as db:
                 assert db.get(Account, source).balance == balance - 400
                 assert db.scalar(select(func.count()).select_from(CardPayment).where(CardPayment.card_id == card_id)) == 1
                 assert db.scalar(select(func.count()).select_from(AccountTransaction).where(AccountTransaction.account_id == source)) == 1
         print("PostgreSQL concurrent card checks passed: balance and card daily limit.")
+
+        source, _, _ = pair(1000)
+        with Session(isolated) as db:
+            card_id = cards.issue(db, owner, source, 1000, False)["id"]
+            before_notices = db.scalar(select(func.count()).select_from(Notification))
+        results = parallel(lambda db: cards.pay(db, owner, card_id, 400, "same merchant", "test", False, "duplicate-payment"))
+        assert results[0] == results[1], results
+        with Session(isolated) as db:
+            assert db.get(Account, source).balance == 600
+            assert db.scalar(select(func.count()).select_from(CardPayment).where(CardPayment.card_id == card_id)) == 1
+            assert db.scalar(select(func.count()).select_from(AccountTransaction).where(AccountTransaction.account_id == source)) == 1
+            assert db.scalar(select(func.count()).select_from(Notification)) == before_notices + 1
+        print("PostgreSQL duplicate card payment check passed: one charge, ledger row, and notification.")
 
         def job(balance=500):
             source, target, num = pair(balance)
@@ -83,6 +96,8 @@ def main():
                 return row.id, source, target
         for balance, expected in ((500, "SUCCESS"), (0, "FAILED")):
             schedule_id, source, target = job(balance)
+            with Session(isolated) as db:
+                before = db.scalar(select(func.count()).select_from(Notification))
             at = now_kst()
             results = parallel(lambda db: auto_transfers.process_one(db, schedule_id, at))
             assert results.count(True) == 1 and results.count(False) == 1, results
@@ -93,6 +108,12 @@ def main():
                 assert db.get(Account, source).balance == (100 if balance else 0)
                 count = db.scalar(select(func.count()).select_from(AccountTransaction).where(AccountTransaction.account_id == source))
                 assert count == (1 if balance else 0)
+                assert db.scalar(select(func.count()).select_from(Notification)) == before + (2 if balance else 1)
+                if balance:
+                    latest = db.scalars(select(Notification).order_by(Notification.id.desc()).limit(2)).all()
+                    assert {(n.type, n.user_id) for n in latest} == {("TRANSFER_IN", other), ("AUTO_TRANSFER_SUCCESS", owner)}
+                else:
+                    assert db.scalar(select(Notification).order_by(Notification.id.desc())).type == "AUTO_TRANSFER_FAIL"
 
         schedule_id, source, target = job()
         original = auto_transfers.next_run
@@ -129,7 +150,7 @@ def main():
             assert response.status_code == 201, response.text
             card_id = response.json()["id"]
             assert "card_number" not in response.json() and len(response.json()["last4"]) == 4
-            assert http.post(f"/cards/{card_id}/payments", json={"amount": 100, "place": "test merchant"}).status_code == 201
+            assert http.post(f"/cards/{card_id}/payments", json={"amount": 100, "place": "test merchant", "idempotency_key": "api-card-payment"}).status_code == 201
             assert http.post(f"/cards/{card_id}/lost", json={"pin": "493827"}).json()["status"] == "LOST"
             assert http.post(f"/cards/{card_id}/reissue", json={"pin": "493827"}).status_code == 201
             request = {"from_account_id": str(source), "to_account_num": number, "amount": 100,

@@ -1,4 +1,8 @@
 message,intent,note
+이번 달 돈이 부족할 것 같은데 왜지? 어떻게 하지?,ACCOUNT_QUERY,코드로 계산하는 소비·잔액 분석
+다음달 얼마 정도 쓸까?,ACCOUNT_QUERY,미래 지출 예측
+내 구독 중인 거 찾아줘,ACCOUNT_QUERY,정기결제 후보 탐지
+소비 패턴 분석해줘,ACCOUNT_QUERY,읽기 전용 분석
 내 계좌 잔액 알려줘,ACCOUNT_QUERY,
 월급통장에 얼마 남았어?,ACCOUNT_QUERY,
 지난달 커피에 얼마 썼지?,ACCOUNT_QUERY,

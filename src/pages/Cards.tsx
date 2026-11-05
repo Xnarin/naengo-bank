@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Check, ChevronLeft, ChevronRight, CreditCard, Plus, ReceiptText, SearchX, Settings2, Wallet } from 'lucide-react';
 import { CARD_STATUS, CheckCard, PinSheet, markOf, shortName } from '../components/bank';
@@ -53,7 +53,7 @@ export function CardList() {
   );
 }
 
-type PinAction = { purpose: string; run: () => Promise<void> };
+type PinAction = { purpose: string; run: (pin: string) => Promise<void> };
 
 /** 카드 상세: 상태 관리(일시정지·분실 신고·재발급·해지), 한도·해외결제·알림 설정, 가상 결제, 사용내역 */
 export function CardDetail() {
@@ -71,11 +71,7 @@ export function CardDetail() {
   const used = cardUsedToday(bank.db, card.id);
 
   /** 간편비밀번호를 거쳐야 하는 일 */
-  const withPin = (purpose: string, run: () => Promise<void>) => { setSheet(null); setError(''); setPinAction({ purpose, run }); };
-  async function runNow(fn: () => Promise<void>) {
-    setError('');
-    try { await fn(); } catch (e) { setError((e as Error).message); }
-  }
+  const withPin = (purpose: string, run: (pin: string) => Promise<void>) => { setSheet(null); setError(''); setPinAction({ purpose, run }); };
 
   return (
     <Page back title={card.name} nav right={
@@ -101,10 +97,10 @@ export function CardDetail() {
 
       <Sheet open={sheet === 'manage'} onClose={() => setSheet(null)} title="카드 관리">
         <div className="grid grid-cols-3 gap-2">
-          {card.status === 'active' && <Action onClick={() => runNow(async () => { await bank.setCardPaused(card.id, true); bank.toast('카드를 일시정지했어요'); })}>일시정지</Action>}
-          {card.status === 'paused' && <Action onClick={() => withPin('다시 쓰려면', async () => { await bank.setCardPaused(card.id, false); bank.toast('카드를 다시 쓸 수 있어요'); })}>다시 쓰기</Action>}
+          {card.status === 'active' && <Action onClick={() => withPin('일시정지하려면', async (pin) => { await bank.setCardPaused(card.id, true, pin); bank.toast('카드를 일시정지했어요'); })}>일시정지</Action>}
+          {card.status === 'paused' && <Action onClick={() => withPin('다시 쓰려면', async (pin) => { await bank.setCardPaused(card.id, false, pin); bank.toast('카드를 다시 쓸 수 있어요'); })}>다시 쓰기</Action>}
           {usable && <Action danger onClick={() => setSheet('lost')}>분실 신고</Action>}
-          <Action onClick={() => withPin('재발급하려면', async () => { const n = await bank.reissueCard(card.id); bank.toast(`새 카드 ••${n.last4}를 발급했어요`); navigate(`/cards/${n.id}`, { replace: true }); })}>재발급</Action>
+          <Action onClick={() => withPin('재발급하려면', async (pin) => { const n = await bank.reissueCard(card.id, pin); bank.toast(`새 카드 ••${n.last4}를 발급했어요`); navigate(`/cards/${n.id}`, { replace: true }); })}>재발급</Action>
         </div>
         {error && <p role="alert" className="mt-3 text-[13px] text-danger">{error}</p>}
 
@@ -117,11 +113,8 @@ export function CardDetail() {
             <Meter label="오늘" used={used} limit={card.dailyLimit} />
           </div>
           <Toggle label="해외결제" desc="꺼 두면 해외 가맹점 결제가 승인되지 않아요" on={card.overseas} disabled={!usable}
-            onChange={(v) => v
-              ? withPin('해외결제를 켜려면', async () => { await bank.updateCard(card.id, { overseas: true }); bank.toast('해외결제를 켰어요'); })
-              : runNow(async () => { await bank.updateCard(card.id, { overseas: false }); bank.toast('해외결제를 껐어요'); })} />
-          <Toggle label="결제 알림" desc="결제할 때마다 알림 화면에 남겨요" on={card.notify} disabled={!usable}
-            onChange={(v) => runNow(async () => { await bank.updateCard(card.id, { notify: v }); bank.toast(v ? '결제 알림을 켰어요' : '결제 알림을 껐어요'); })} />
+            onChange={(v) => withPin('해외결제 설정을 바꾸려면', async (pin) => { await bank.updateCard(card.id, { overseas: v }, pin); bank.toast(v ? '해외결제를 켰어요' : '해외결제를 껐어요'); })} />
+          <p className="border-t border-line py-4 text-[13px] text-sub">카드 결제 결과는 알림 화면에서 확인할 수 있어요.</p>
         </section>
 
         <button onClick={() => setSheet('pay')} disabled={card.status === 'lost'} className="mt-2 w-full rounded-2xl bg-surface py-3.5 text-[14px] font-semibold text-navy hover:bg-line disabled:opacity-40">
@@ -133,19 +126,19 @@ export function CardDetail() {
       </Sheet>
 
       <LimitSheet open={sheet === 'limit'} onClose={() => setSheet('manage')} current={card.dailyLimit}
-        onPick={(v) => withPin('한도를 바꾸려면', async () => { await bank.updateCard(card.id, { dailyLimit: v }); bank.toast(`1일 한도를 ${short(v)}으로 바꿨어요`); })} />
+        onPick={(v) => withPin('한도를 바꾸려면', async (pin) => { await bank.updateCard(card.id, { dailyLimit: v }, pin); bank.toast(`1일 한도를 ${short(v)}으로 바꿨어요`); })} />
       <ConfirmSheet open={sheet === 'lost'} onClose={() => setSheet('manage')} title="분실 신고" cta="분실 신고하기"
-        onConfirm={() => withPin('분실 신고하려면', async () => { await bank.reportLost(card.id); bank.toast('분실 신고했어요. 결제가 바로 막혔어요'); })}>
+        onConfirm={() => withPin('분실 신고하려면', async (pin) => { await bank.reportLost(card.id, pin); bank.toast('분실 신고했어요. 결제가 바로 막혔어요'); })}>
         신고하는 즉시 이 카드의 모든 결제가 막혀요. 분실 신고는 되돌릴 수 없고, 다시 쓰려면 재발급해야 해요.
       </ConfirmSheet>
       <ConfirmSheet open={sheet === 'terminate'} onClose={() => setSheet('manage')} title="카드 해지" cta="해지하기"
-        onConfirm={() => withPin('해지하려면', async () => { await bank.terminateCard(card.id); bank.toast('카드를 해지했어요'); navigate('/cards', { replace: true }); })}>
+        onConfirm={() => withPin('해지하려면', async (pin) => { await bank.terminateCard(card.id, pin); bank.toast('카드를 해지했어요'); navigate('/cards', { replace: true }); })}>
         해지한 카드는 다시 쓸 수 없어요. 연결 계좌({acc ? shortName(acc.name) : '-'})는 그대로 남고, 다른 카드가 없으면 계좌도 해지할 수 있게 돼요.
       </ConfirmSheet>
       <PaySheet open={sheet === 'pay'} onClose={() => setSheet('manage')} card={card} />
 
       <PinSheet open={!!pinAction} onClose={() => setPinAction(null)} purpose={pinAction?.purpose}
-        onPass={() => { const a = pinAction; setPinAction(null); if (a) runNow(a.run); }} />
+        onPass={async (pin) => { if (pinAction) await pinAction.run(pin); setPinAction(null); }} />
     </Page>
   );
 }
@@ -215,14 +208,17 @@ function PaySheet({ open, onClose, card }: { open: boolean; onClose: () => void;
   const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const p = PAY_PRESETS[pick];
+  const submitting = useRef(false);
 
   async function pay() {
+    if (submitting.current || result?.ok) return;
+    submitting.current = true;
     setBusy(true); setResult(null);
     try {
       await bank.payWithCard(card.id, { ...p, amount: Number(amount) });
       setResult({ ok: true, msg: `${p.merchant}에서 ${won(Number(amount))} 결제가 승인됐어요.${card.notify ? ' 알림에도 남았어요.' : ''}` });
     } catch (e) { setResult({ ok: false, msg: (e as Error).message }); }
-    finally { setBusy(false); }
+    finally { submitting.current = false; setBusy(false); }
   }
 
   return (
@@ -230,7 +226,7 @@ function PaySheet({ open, onClose, card }: { open: boolean; onClose: () => void;
       <p className="text-[14px] text-sub">실제 결제는 일어나지 않아요. 연결 계좌의 가상 잔액에서 빠져나가요.</p>
       <div className="mt-4 space-y-2" role="radiogroup" aria-label="가맹점">
         {PAY_PRESETS.map((x, i) => (
-          <button key={x.merchant} role="radio" aria-checked={pick === i} onClick={() => { setPick(i); setAmount(String(x.amount)); setResult(null); }}
+          <button key={x.merchant} role="radio" aria-checked={pick === i} disabled={busy || result?.ok} onClick={() => { setPick(i); setAmount(String(x.amount)); setResult(null); }}
             className={cn('flex w-full items-center justify-between rounded-xl border-2 px-4 py-3 text-left text-[14px]', pick === i ? 'border-brand bg-brand-soft' : 'border-transparent bg-surface')}>
             <span><span className="font-semibold">{x.merchant}</span>{x.overseas && <span className="ml-1.5 text-[12px] font-semibold text-brand">해외</span>}</span>
             <span className="text-sub">{x.category}</span>
@@ -239,7 +235,7 @@ function PaySheet({ open, onClose, card }: { open: boolean; onClose: () => void;
       </div>
       <label className="mt-4 flex items-baseline gap-1 border-b-2 border-line pb-1 focus-within:border-brand">
         <span className="sr-only">결제 금액</span>
-        <input inputMode="numeric" value={Number(amount || 0).toLocaleString('ko-KR')} onChange={(e) => { setAmount(e.target.value.replace(/\D/g, '').slice(0, 8)); setResult(null); }}
+        <input inputMode="numeric" disabled={busy || result?.ok} value={Number(amount || 0).toLocaleString('ko-KR')} onChange={(e) => { setAmount(e.target.value.replace(/\D/g, '').slice(0, 8)); setResult(null); }}
           className="num w-full bg-transparent font-display text-[24px] font-bold outline-none" />
         <span className="font-display text-[18px] font-bold">원</span>
       </label>
@@ -248,7 +244,7 @@ function PaySheet({ open, onClose, card }: { open: boolean; onClose: () => void;
           {result.ok && <Check className="mt-0.5 size-4 shrink-0" />}{result.msg}
         </p>
       )}
-      <Button full size="lg" className="mt-5" loading={busy} disabled={!Number(amount)} onClick={pay}>결제하기</Button>
+      <Button full size="lg" className="mt-5" loading={busy} disabled={!Number(amount) || result?.ok} onClick={pay}>{result?.ok ? '결제 완료' : '결제하기'}</Button>
     </Sheet>
   );
 }
@@ -320,9 +316,9 @@ export function IssueCard() {
 
   if (!accounts.length) return <Page back title="체크카드 발급"><EmptyState icon={Wallet} title="연결할 계좌가 없어요" desc="정상 상태인 내 계좌가 있어야 카드를 만들 수 있어요." action={<Button onClick={() => navigate('/products')}>통장 만들기</Button>} /></Page>;
 
-  async function issue() {
-    setPin(false); setBusy(true); setError('');
-    try { setIssued(await bank.issueCard(f)); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  async function issue(pinValue: string) {
+    setBusy(true); setError('');
+    try { await bank.verifyPin(pinValue, f.accountId); setIssued(await bank.issueCard(f)); setPin(false); } catch (e) { throw e; } finally { setBusy(false); }
   }
 
   if (issued) {

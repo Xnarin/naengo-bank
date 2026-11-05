@@ -105,7 +105,7 @@ function ShortCut({ to, icon, title, desc }: { to: string; icon: ReactNode; titl
 }
 
 function ProfileSheet({ open, onClose, email }: { open: boolean; onClose: () => void; email: string }) {
-  const { user, logout, resetDemo, simulateError, setSimulateError, toast } = useBank();
+  const { user, logout, refresh, loading, toast } = useBank();
   return (
     <Sheet open={open} onClose={onClose} title="내 정보">
       <div className="flex items-center gap-3 rounded-2xl bg-surface p-4">
@@ -119,16 +119,11 @@ function ProfileSheet({ open, onClose, email }: { open: boolean; onClose: () => 
         계정 관리<ChevronRight className="size-5 text-mute" />
       </Link>
       <ThemePicker />
-      <p className="mt-6 mb-2 text-[13px] font-medium text-sub">프로토타입 설정</p>
-      <label className="flex cursor-pointer items-center justify-between py-3">
-        <span>
-          <span className="block text-[15px]">API 오류 시뮬레이션</span>
-          <span className="block text-[13px] text-sub">조회·송금·챗봇 요청이 실패하도록 설정</span>
-        </span>
-        <input type="checkbox" role="switch" checked={simulateError} onChange={(e) => setSimulateError(e.target.checked)} className="size-5 accent-brand" />
-      </label>
-      <button className="flex w-full items-center gap-2 py-3 text-[15px]" onClick={() => { resetDemo(); toast('데모 데이터를 초기화했어요'); onClose(); }}>
-        <RotateCcw className="size-4 text-sub" />데모 데이터 초기화
+      <button disabled={loading} className="mt-6 flex w-full items-center gap-2 py-3 text-[15px] disabled:opacity-50" onClick={async () => {
+        if (await refresh()) { toast('최신 정보를 불러왔어요'); onClose(); }
+        else toast('정보를 불러오지 못했어요. 다시 시도해 주세요.');
+      }}>
+        <RotateCcw className="size-4 text-sub" />최신 정보 새로고침
       </button>
       <button className="flex w-full items-center gap-2 py-3 text-[15px] text-danger" onClick={logout}>
         <LogOut className="size-4" />로그아웃

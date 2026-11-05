@@ -1,6 +1,6 @@
 """에이전트 평가 (docs/agent-design.md §10). SQLite 메모리 DB에 고정 데이터를 심고 실제 그래프(LLM 포함)를 돌린다.
 
-실행 (backend 폴더에서): uv run python -m app.agent.evaluate [intent|flows|security|all]
+실행 (backend 폴더에서): uv run python -m app.agent.evaluate [intent|flows|security|insights|all]
 결과: ../data/rag/eval_results/agent_flows.json
 
 - intent: intent_golden.csv (발화, 기대 intent) → 라우터 정확도
@@ -29,6 +29,7 @@ from app.agent.graph import resume, run  # noqa: E402
 from app.models import (Account, AccountProduct, AccountTransaction, Base, Card, CardPayment,  # noqa: E402
                         FavoriteRecipient, Transfer, User, now_kst)
 from app.security import hash_secret  # noqa: E402
+from app.services import insights  # noqa: E402
 
 HERE = Path(__file__).parent
 OUT = HERE.parents[2] / "data" / "rag" / "eval_results" / "agent_flows.json"
@@ -72,7 +73,12 @@ def seed() -> Session:
     for days, acc, d, amt, name, num, memo in tx:
         db.add(AccountTransaction(account_id=acc, transaction_type="TRANSFER", transaction_direction=d, amount=amt, new_balance=0,
                                   counterparty_name=name, counterparty_account=num, memo=memo, transaction_at=now.replace(day=1, hour=9) if days == "M1" else now - timedelta(days=days)))
-    db.add(Card(id=CARD, account_id=A_MAIN, card_number="5310-1234-5678-4821", expiry_date="12/29"))
+    from cryptography.fernet import Fernet
+    from app.config import settings
+    from app.services.cards import cipher
+    if not settings.card_key:
+        settings.card_key = Fernet.generate_key().decode()
+    db.add(Card(id=CARD, account_id=A_MAIN, card_number=cipher().encrypt(b"5310123456784821").decode(), expiry_date="12/29"))
     this_month = now.replace(day=1, hour=12)
     last_month = (this_month - timedelta(days=1)).replace(day=10)
     for when, place, cat, amt in [(this_month, "스타벅스", "카페", 5_600), (this_month, "블루보틀", "카페", 6_800), (this_month, "김밥천국", "식비", 9_000),
@@ -218,13 +224,75 @@ def eval_security():
     return r
 
 
+def eval_insights():
+    """실제 모델이 계산 도구를 호출하고, 코드의 숫자·제약으로 답하는지 검사한다."""
+    from unittest.mock import patch
+    db = seed()
+    now = now_kst()
+    for payment in db.scalars(select(CardPayment)):
+        db.add(AccountTransaction(account_id=A_MAIN, card_payment_id=payment.id, transaction_type="CARD",
+                                  transaction_direction="OUT", amount=payment.amount, new_balance=0,
+                                  counterparty_name=payment.place, transaction_at=payment.request_at))
+    for offset in (1, 2, 3):
+        day = insights.month_start(now.date(), -offset)
+        when = now.replace(year=day.year, month=day.month, day=1)
+        payment = CardPayment(card_id=CARD, amount=12_000, place="ViewFlix", category="구독", request_at=when, complete_at=when)
+        db.add(payment)
+        db.flush()
+        db.add(AccountTransaction(account_id=A_MAIN, card_payment_id=payment.id, transaction_type="CARD",
+                                  transaction_direction="OUT", amount=12_000, new_balance=0,
+                                  counterparty_name="ViewFlix", transaction_at=when))
+    for days in (7, 14, 21, 28, 35):
+        when = now - timedelta(days=days)
+        payment = CardPayment(card_id=CARD, amount=3000, place="테스트카페", category="카페", request_at=when, complete_at=when)
+        db.add(payment)
+        db.flush()
+        db.add(AccountTransaction(account_id=A_MAIN, card_payment_id=payment.id, transaction_type="CARD",
+                                  transaction_direction="OUT", amount=3000, new_balance=0, transaction_at=when))
+    db.commit()
+    next_month = insights.month_start(now.date(), 1).strftime("%Y-%m")
+    spending = insights.spending_analysis(db, ME)
+    forecast = insights.balance_forecast(db, ME, next_month)
+    before = bal(db, A_MAIN)
+    checks = []
+    print("[insights]", flush=True)
+    cases = [
+        ("이번 달 내 소비 패턴과 전월 대비 변화를 분석해줘", {"spending_analysis"}, [f"{spending['전체출금']:,}"]),
+        ("다음달 얼마 정도 쓸까?", {"balance_forecast"}, [f"{forecast['대상월예상출금']:,}"]),
+        ("이번 달 돈이 부족할 것 같은데 왜지? 어떻게 하지?", {"balance_forecast", "spending_analysis"}, []),
+        ("내 구독 중인 거 탐지해줘", {"detect_subscriptions"}, ["ViewFlix", "후보"]),
+    ]
+    for message, required, numbers in cases:
+        with patch.object(insights, "spending_analysis", wraps=insights.spending_analysis) as spending_spy, \
+                patch.object(insights, "balance_forecast", wraps=insights.balance_forecast) as forecast_spy, \
+                patch.object(insights, "detect_subscriptions", wraps=insights.detect_subscriptions) as subscriptions_spy:
+            state = run(message, db=db, user_id=ME)
+            called = {name for name, spy in (("spending_analysis", spending_spy), ("balance_forecast", forecast_spy),
+                                             ("detect_subscriptions", subscriptions_spy)) if spy.call_count}
+        answer = state["answer"]
+        displayed = answer + json.dumps(state.get("blocks", []), ensure_ascii=False)
+        expected_visual = "subscriptionInsight" if "detect_subscriptions" in required else "forecastInsight" if "balance_forecast" in required else "spendingInsight"
+        ok = (state["intent"] == "ACCOUNT_QUERY" and state["status"] == "answered" and required <= called
+              and all(number.replace(",", "") in displayed.replace(",", "") for number in numbers)
+              and any(block["kind"] == expected_visual for block in state.get("blocks", []))
+              and not state.get("confirm") and bal(db, A_MAIN) == before)
+        checks.append(check(message, ok, f"tools={sorted(called)} / {answer}"))
+        checks[-1].update(answer=answer, tools=sorted(called))
+    state = run("다음달 지출과 잔액을 예측해줘", db=db, user_id=HACKER)
+    checks.append(check("새 계정: 데이터 부족이면 예측 보류", state["intent"] == "ACCOUNT_QUERY"
+                        and any(word in state["answer"] for word in ("부족", "어려", "기록이 없", "내역이 없")), state["answer"]))
+    checks[-1]["answer"] = state["answer"]
+    db.close()
+    return checks
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
     result = {}
     if which in ("intent", "all"):
         result["intent"] = eval_intent()
-    for name, fn in [("flows", eval_flows), ("security", eval_security)]:
+    for name, fn in [("flows", eval_flows), ("security", eval_security), ("insights", eval_insights)]:
         if which in (name, "all"):
             rs = fn()
             result[name] = {"passed": sum(x["ok"] for x in rs), "n": len(rs), "checks": rs}
