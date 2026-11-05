@@ -1,0 +1,242 @@
+// ===== A. 회원·인증 =====
+
+Table users [headercolor: #175e7a] {
+	id uuid [ pk, note: '회원 ID' ]
+	email varchar(255) [ unique, not null, note: '이메일 (로그인 ID)' ]
+	user_name varchar(50) [ not null, note: '이름' ]
+	birth date [ note: '생년월일' ]
+	phone_num varchar(20) [ unique, note: '휴대폰 번호 (선택)' ]
+	password_hash varchar(255) [ not null, note: '비밀번호 (해시)' ]
+	pin varchar(255) [ not null, note: '간편비밀번호 PIN 6자리 (해시)' ]
+	login_fail_count int [ not null, default: 0, note: '로그인 실패 횟수' ]
+	pin_fail_count int [ not null, default: 0, note: 'PIN 실패 횟수' ]
+	status varchar(20) [ not null, default: 'ACTIVE', note: '회원 상태: ACTIVE 정상 / LOCKED 잠금 / WITHDRAWN 탈퇴' ]
+	created_at timestamptz [ not null, note: '가입일시' ]
+	withdrawn_at timestamptz [ note: '탈퇴일시' ]
+
+	Note: '회원'
+}
+
+Table terms [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '약관 ID' ]
+	title varchar(200) [ not null, note: '약관 제목' ]
+	content text [ not null, note: '약관 내용' ]
+	version varchar(20) [ not null, note: '약관 버전' ]
+	required boolean [ not null, note: '필수 여부' ]
+	category varchar(20) [ not null, note: '약관 구분: SIGNUP 회원가입 / ACCOUNT_OPEN 계좌개설' ]
+
+	Note: '약관'
+}
+
+Table term_agreements [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '약관동의 ID' ]
+	user_id uuid [ not null, note: '회원 ID' ]
+	term_id bigint [ not null, note: '약관 ID' ]
+	agreed boolean [ not null, note: '동의 여부' ]
+	agreed_at timestamptz [ not null, note: '동의일시' ]
+
+	Note: '약관 동의 내역'
+}
+
+Table verification_codes [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '인증번호 ID' ]
+	email varchar(255) [ not null, note: '인증번호 받는 이메일' ]
+	purpose varchar(20) [ not null, note: '인증 목적: SIGNUP 가입 / UNLOCK_ACCOUNT 거래중지 해제 / RESET_PW 비밀번호 재설정' ]
+	code_hash varchar(255) [ not null, note: '인증번호 (해시)' ]
+	expires_at timestamptz [ not null, note: '만료일시' ]
+	attempts int [ not null, default: 0, note: '시도 횟수' ]
+	verified_at timestamptz [ note: '인증 완료일시' ]
+
+	Note: '본인확인 인증번호 (이메일 발송)'
+}
+
+Table login_histories [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '접속기록 ID' ]
+	user_id uuid [ not null, note: '회원 ID' ]
+	ip varchar(45) [ note: '접속 IP' ]
+	user_agent varchar(500) [ note: '접속 기기·브라우저' ]
+	success boolean [ not null, note: '로그인 성공 여부' ]
+	created_at timestamptz [ not null, note: '접속일시' ]
+
+	Note: '로그인 접속 기록'
+}
+
+Table notifications [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '알림 ID' ]
+	user_id uuid [ not null, note: '회원 ID' ]
+	type varchar(30) [ not null, note: '알림 종류: CARD_PAYMENT 카드결제 / SUSPICIOUS_LOGIN 이상접속 / AUTO_TRANSFER_FAIL 자동이체 실패' ]
+	message varchar(500) [ not null, note: '알림 내용' ]
+	read_at timestamptz [ note: '읽은 일시' ]
+	created_at timestamptz [ not null, note: '알림 생성일시' ]
+
+	Note: '알림'
+}
+
+// ===== B. 계좌 =====
+
+Table account_products [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '상품 ID' ]
+	code varchar(20) [ unique, not null, note: '상품 코드 (basic, parking, youth, living, group)' ]
+	product_name varchar(100) [ not null, note: '상품명' ]
+	interest_rate numeric(5,3) [ note: '연 금리 (%)' ]
+	description text [ note: '상품 설명' ]
+
+	Note: '계좌 상품'
+}
+
+Table accounts [headercolor: #175e7a] {
+	id uuid [ pk, note: '계좌 ID' ]
+	user_id uuid [ not null, note: '소유 회원 ID' ]
+	product_id bigint [ not null, note: '상품 ID' ]
+	account_num varchar(13) [ unique, not null, note: '계좌번호 (xxx-xxxx-xxxx)' ]
+	account_password varchar(255) [ not null, note: '통장 비밀번호 4자리 (해시)' ]
+	password_fail_count int [ not null, default: 0, note: '통장 비밀번호 실패 횟수' ]
+	balance bigint [ not null, default: 0, note: '잔액 (원)' ]
+	nickname varchar(50) [ note: '계좌 별칭' ]
+	is_favorite boolean [ not null, default: false, note: '즐겨찾기 여부' ]
+	daily_limit bigint [ not null, default: 1000000, note: '1일 이체한도 (원)' ]
+	month_limit bigint [ not null, default: 5000000, note: '1달 이체한도 (원)' ]
+	opening_info jsonb [ note: '개설 목적·거래정보' ]
+	status varchar(20) [ not null, default: 'ACTIVE', note: '계좌 상태: ACTIVE 정상 / SUSPENDED 거래중지 / CLOSED 해지' ]
+	created_at timestamptz [ not null, note: '개설일시' ]
+	closed_at timestamptz [ note: '해지일시' ]
+
+	Note: '계좌'
+}
+
+Table account_transactions [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '거래 ID' ]
+	account_id uuid [ not null, note: '계좌 ID' ]
+	transfer_id uuid [ note: '이체 ID' ]
+	card_payment_id bigint [ note: '카드결제 ID' ]
+	transaction_type varchar(20) [ not null, note: '거래 유형: DEPOSIT 입금 / WITHDRAW 출금 / TRANSFER 이체 / AUTO_TRANSFER 자동이체 / CARD 카드' ]
+	transaction_direction varchar(3) [ not null, note: '입출금 구분: IN 입금 / OUT 출금' ]
+	amount bigint [ not null, note: '거래 금액 (원)' ]
+	new_balance bigint [ not null, note: '거래 후 잔액 (원)' ]
+	counterparty_name varchar(100) [ note: '상대방 이름 (카드는 가맹점명)' ]
+	counterparty_account varchar(13) [ note: '상대방 계좌번호' ]
+	memo varchar(100) [ note: '적요' ]
+	transaction_at timestamptz [ not null, note: '거래일시' ]
+
+	indexes {
+		(account_id, transaction_at) [ name: 'idx_account_transactions_account_at' ]
+	}
+
+	Note: '계좌 거래내역 (거래원장)'
+}
+
+Table statement_requests [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '다운로드 신청 ID' ]
+	account_id uuid [ not null, note: '계좌 ID' ]
+	from_date date [ not null, note: '조회 시작일' ]
+	to_date date [ not null, note: '조회 종료일' ]
+	email varchar(255) [ not null, note: '받을 이메일' ]
+	status varchar(20) [ not null, default: 'REQUESTED', note: '처리 상태: REQUESTED 접수 / SENT 발송완료 / FAILED 실패' ]
+	created_at timestamptz [ not null, note: '신청일시' ]
+
+	Note: '거래내역 다운로드 신청'
+}
+
+// ===== C. 이체 =====
+
+Table transfers [headercolor: #175e7a] {
+	id uuid [ pk, note: '이체 ID' ]
+	idempotency_key varchar(100) [ unique, not null, note: '중복 방지 키' ]
+	from_account_id uuid [ not null, note: '출금 계좌 ID' ]
+	to_account_id uuid [ not null, note: '입금 계좌 ID' ]
+	auto_transfer_id uuid [ note: '자동이체 ID' ]
+	amount bigint [ not null, note: '이체 금액 (원)' ]
+	memo varchar(100) [ note: '메모' ]
+	status varchar(20) [ not null, note: '처리 상태: PENDING 처리중 / SUCCESS 성공 / FAILED 실패' ]
+	fail_reason varchar(200) [ note: '실패 사유' ]
+	request_at timestamptz [ not null, note: '요청일시' ]
+	complete_at timestamptz [ note: '완료일시' ]
+
+	Note: '이체'
+}
+
+Table auto_transfers [headercolor: #175e7a] {
+	id uuid [ pk, note: '자동이체 ID' ]
+	from_account_id uuid [ not null, note: '출금 계좌 ID' ]
+	to_account_id uuid [ not null, note: '입금 계좌 ID' ]
+	amount bigint [ not null, note: '이체 금액 (원)' ]
+	memo varchar(100) [ note: '메모' ]
+	cycle varchar(10) [ not null, note: '주기: ONCE 예약이체(1회) / WEEKLY 매주 / MONTHLY 매월' ]
+	run_day int [ note: '실행일: 매주 0(월)~6(일) / 매월 1~31 (ONCE는 비움)' ]
+	start_date date [ not null, note: '시작일' ]
+	end_date date [ note: '종료일' ]
+	next_run_at timestamptz [ not null, note: '다음 실행 시각' ]
+	status varchar(20) [ not null, default: 'ACTIVE', note: '상태: ACTIVE 사용중 / ENDED 종료 / CANCELED 해지' ]
+	created_at timestamptz [ not null, note: '등록일시' ]
+
+	indexes {
+		next_run_at [ name: 'idx_auto_transfers_next_run' ]
+	}
+
+	Note: '자동이체·예약이체'
+}
+
+Table favorite_recipients [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '즐겨찾기 ID' ]
+	user_id uuid [ not null, note: '회원 ID' ]
+	account_num varchar(13) [ not null, note: '받는 계좌번호' ]
+	holder_name varchar(50) [ not null, note: '예금주' ]
+	alias varchar(50) [ note: '별칭' ]
+
+	Note: '자주 쓰는 받는 계좌'
+}
+
+// ===== D. 카드 =====
+
+Table cards [headercolor: #175e7a] {
+	id uuid [ pk, note: '카드 ID' ]
+	account_id uuid [ not null, note: '연결 계좌 ID' ]
+	card_number varchar(255) [ unique, not null, note: '카드번호 (암호화, 화면은 끝 4자리만)' ]
+	expiry_date varchar(5) [ not null, note: '유효기간 (MM/YY)' ]
+	card_network varchar(20) [ note: '카드 브랜드: VISA / MASTER / LOCAL' ]
+	daily_limit bigint [ not null, default: 1000000, note: '1일 사용한도 (원)' ]
+	overseas_enabled boolean [ not null, default: false, note: '해외결제 허용 여부' ]
+	reissued_from_id uuid [ note: '재발급 전 카드 ID' ]
+	status varchar(20) [ not null, default: 'ACTIVE', note: '카드 상태: ACTIVE 정상 / SUSPENDED 정지 / LOST 분실 / REISSUED 재발급됨 / CANCELED 해지' ]
+	created_at timestamptz [ not null, note: '발급일시' ]
+
+	Note: '체크카드'
+}
+
+Table card_payments [headercolor: #175e7a] {
+	id bigint [ pk, increment, note: '카드결제 ID' ]
+	card_id uuid [ not null, note: '카드 ID' ]
+	amount bigint [ not null, note: '결제 금액 (원)' ]
+	place varchar(100) [ note: '가맹점명' ]
+	category varchar(30) [ note: '업종 분류 (식비, 카페 등)' ]
+	request_at timestamptz [ not null, note: '결제 요청일시' ]
+	complete_at timestamptz [ note: '결제 완료일시' ]
+
+	indexes {
+		card_id [ name: 'idx_card_payments_card_id' ]
+	}
+
+	Note: '카드 결제내역'
+}
+
+// ===== 관계 =====
+
+Ref: term_agreements.user_id > users.id
+Ref: term_agreements.term_id > terms.id
+Ref: login_histories.user_id > users.id
+Ref: notifications.user_id > users.id
+Ref: accounts.user_id > users.id
+Ref: accounts.product_id > account_products.id
+Ref: account_transactions.account_id > accounts.id
+Ref: account_transactions.transfer_id > transfers.id
+Ref: account_transactions.card_payment_id > card_payments.id
+Ref: statement_requests.account_id > accounts.id
+Ref: transfers.from_account_id > accounts.id
+Ref: transfers.to_account_id > accounts.id
+Ref: transfers.auto_transfer_id > auto_transfers.id
+Ref: auto_transfers.from_account_id > accounts.id
+Ref: auto_transfers.to_account_id > accounts.id
+Ref: favorite_recipients.user_id > users.id
+Ref: cards.account_id > accounts.id
+Ref: cards.reissued_from_id > cards.id
+Ref: card_payments.card_id > cards.id

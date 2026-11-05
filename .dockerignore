@@ -1,0 +1,14 @@
+**
+!backend/
+!backend/Dockerfile
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/alembic.ini
+!backend/app/
+!backend/app/**
+!backend/alembic/
+!backend/alembic/**
+!rag/
+!rag/**
+**/__pycache__/
+**/*.pyc
