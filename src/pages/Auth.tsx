@@ -51,9 +51,9 @@ function PinLogin({ onEmail }: { onEmail: () => void }) {
 
   return (
     <Page>
-      <div className="flex min-h-dvh flex-col pt-20 pb-8">
+      <div className="flex min-h-dvh flex-col pt-8 pb-8">
         <Brand />
-        <h1 className="mt-10 font-display text-[24px] leading-snug font-bold"><span className="text-brand">{deviceUser.name}</span>님,<br />간편비밀번호를 눌러 주세요</h1>
+        <h1 className="mt-22 text-center font-display text-[24px] leading-snug font-bold"><span className="text-brand">{deviceUser.name}</span>님,<br />간편비밀번호를 눌러 주세요</h1>
         <PinPad onComplete={go} error={error} busy={busy} locked={error?.locked || deviceUser.locked}
           message={deviceUser.locked ? '로그인이 잠긴 계정이에요.' : ' '} />
         {(error?.locked || deviceUser.locked) && <Link to="/reset-password" className="mt-3 text-center text-[14px] font-semibold text-brand">비밀번호 재설정으로 잠금 풀기</Link>}
