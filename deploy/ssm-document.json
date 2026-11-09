@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "2.2",
+  "description": "Deploy a packaged Naengo release on the production instance",
+  "parameters": {
+    "ReleaseId": {
+      "type": "String",
+      "interpolationType": "ENV_VAR",
+      "allowedPattern": "^[a-f0-9]{40}-[0-9]{1,20}-[0-9]{1,6}$"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "deploy",
+      "inputs": {
+        "timeoutSeconds": "480",
+        "runCommand": ["exec /usr/local/sbin/naengo-deploy \"${SSM_ReleaseId:-{{ReleaseId}}}\""]
+      }
+    }
+  ]
+}

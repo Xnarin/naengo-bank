@@ -1,0 +1,89 @@
+name: Deploy to EC2
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the tested release to EC2
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: naengo-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24
+          cache: npm
+      - uses: astral-sh/setup-uv@37802adc94f370d6bfd71619e3f0bf239e1f3b78 # v7
+      - name: Test backend
+        working-directory: backend
+        env:
+          DATABASE_URL: sqlite://
+          JWT_SECRET: ci-only-not-a-production-secret
+        run: |
+          printf 'GEMINI_API_KEY=ci-placeholder\n' > ../.env
+          uv run --locked --python 3.12 pytest -q
+      - run: npm ci
+      - run: npm run build
+      - name: Package release
+        run: |
+          mkdir release
+          git archive HEAD backend/app backend/alembic backend/alembic.ini backend/pyproject.toml backend/uv.lock rag data/products.json | tar -x -C release
+          cp -r dist release/
+          tar -czf release.tar.gz -C release backend rag data dist
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: naengo-release
+          path: release.tar.gz
+          retention-days: 2
+
+  deploy:
+    if: inputs.publish
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      id-token: write
+    env:
+      AWS_REGION: ap-northeast-2
+      AWS_DEPLOY_BUCKET: ${{ vars.AWS_DEPLOY_BUCKET }}
+      AWS_DEPLOY_INSTANCE: ${{ vars.AWS_DEPLOY_INSTANCE }}
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: naengo-release
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+      - name: Deploy and wait for EC2
+        run: |
+          release_id="$GITHUB_SHA-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          aws s3api put-object --bucket "$AWS_DEPLOY_BUCKET" --key "releases/$release_id.tar.gz" --body release.tar.gz >/dev/null
+          command_id=$(aws ssm send-command --document-name NaengoDeployRelease --instance-ids "$AWS_DEPLOY_INSTANCE" \
+            --parameters "ReleaseId=$release_id" --query Command.CommandId --output text)
+          echo "SSM command: $command_id"
+          invocation=(--command-id "$command_id" --instance-id "$AWS_DEPLOY_INSTANCE")
+          for attempt in {1..120}; do
+            status=$(aws ssm get-command-invocation "${invocation[@]}" --query Status --output text 2>/dev/null || true)
+            case "$status" in
+              Success) exit 0 ;;
+              ''|Pending|InProgress|Delayed|Cancelling) sleep 5 ;;
+              *) aws ssm get-command-invocation "${invocation[@]}" --query '[StatusDetails,StandardErrorContent]' --output text; exit 1 ;;
+            esac
+          done
+          echo 'Timed out waiting for EC2 deployment' >&2
+          exit 1
