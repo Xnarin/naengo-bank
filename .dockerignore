@@ -10,5 +10,7 @@
 !backend/alembic/**
 !rag/
 !rag/**
+!data/
+!data/products.json
 **/__pycache__/
 **/*.pyc

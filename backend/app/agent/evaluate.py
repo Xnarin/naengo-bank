@@ -1,6 +1,6 @@
 """에이전트 평가 (docs/agent-design.md §10). SQLite 메모리 DB에 고정 데이터를 심고 실제 그래프(LLM 포함)를 돌린다.
 
-실행 (backend 폴더에서): uv run python -m app.agent.evaluate [intent|flows|security|insights|all]
+실행 (backend 폴더에서): uv run python -m app.agent.evaluate [intent|flows|security|insights|recommendations|all]
 결과: ../data/rag/eval_results/agent_flows.json
 
 - intent: intent_golden.csv (발화, 기대 intent) → 라우터 정확도
@@ -286,13 +286,56 @@ def eval_insights():
     return checks
 
 
+def eval_recommendations():
+    from app.services.recommendations import product_catalog
+    db = seed()
+    for code, spec in product_catalog().items():
+        product = db.scalar(select(AccountProduct).where(AccountProduct.code == code))
+        if product is None:
+            product = AccountProduct(code=code)
+            db.add(product)
+        product.product_name, product.interest_rate = spec["name"], spec["rate"]
+    for payment in db.scalars(select(CardPayment)):
+        db.add(AccountTransaction(account_id=A_MAIN, card_payment_id=payment.id, transaction_type="CARD",
+                                  transaction_direction="OUT", amount=payment.amount, new_balance=0,
+                                  transaction_at=payment.request_at))
+    db.commit()
+    checks = []
+    before = bal(db, A_MAIN)
+    print("[recommendations]", flush=True)
+    personalized = run("내 소비패턴에 맞는 입출금통장 추천해줘", db=db, user_id=ME)
+    visual = next((block for block in personalized.get("blocks", []) if block["kind"] == "recommendationInsight"), {})
+    checks.append(check("소비패턴 추천: 계산 근거와 상품 카드", personalized["intent"] == "PRODUCT_RECOMMENDATION"
+                        and personalized.get("recommendation_purpose") == "general"
+                        and visual.get("status") == "소비패턴기준비교" and visual.get("cardTotal", 0) > 0
+                        and bool(visual.get("items")), personalized["answer"]))
+    cold = run("입출금통장 추천해줘", db=db, user_id=HACKER)
+    cold_card = next((block for block in cold.get("blocks", []) if block["kind"] == "recommendationInsight"), {})
+    checks.append(check("신규 계정: 맞춤 추천 보류와 목적 질문", cold_card.get("status") == "데이터부족"
+                        and cold_card.get("items") == [] and any(block["kind"] == "choices" for block in cold.get("blocks", [])), cold["answer"]))
+    following = run("생활비 관리용 통장을 추천해줘", thread_id=cold["thread_id"], db=db, user_id=HACKER)
+    follow_card = next((block for block in following.get("blocks", []) if block["kind"] == "recommendationInsight"), {})
+    checks.append(check("목적 후속 답변: 생활비 후보 조건부 비교", follow_card.get("status") == "목적기준안내"
+                        and (follow_card.get("items") or [{}])[0].get("code") == "living", following["answer"]))
+    anonymous = run("입출금통장 추천해줘")
+    checks.append(check("비로그인: 분석 없이 로그인 안내", anonymous["intent"] == "PRODUCT_RECOMMENDATION"
+                        and anonymous["status"] == "guided" and not any(block["kind"] == "recommendationInsight" for block in anonymous.get("blocks", []))))
+    from app.agent.graph import ROUTER_PROMPT, router_llm
+    for message, expected in (("파킹통장 금리 얼마예요?", "FINANCE_QA"), ("비트코인 추천해줘", "UNSUPPORTED")):
+        route = router_llm.invoke(ROUTER_PROMPT.format(message=message, pending="", history="(없음)"))
+        checks.append(check(message, route.intent == expected, route.intent))
+    checks.append(check("추천 조회는 잔액을 변경하지 않음", bal(db, A_MAIN) == before))
+    db.close()
+    return checks
+
+
 if __name__ == "__main__":
     sys.stdout.reconfigure(encoding="utf-8")
     which = sys.argv[1] if len(sys.argv) > 1 else "all"
     result = {}
     if which in ("intent", "all"):
         result["intent"] = eval_intent()
-    for name, fn in [("flows", eval_flows), ("security", eval_security), ("insights", eval_insights)]:
+    for name, fn in [("flows", eval_flows), ("security", eval_security), ("insights", eval_insights), ("recommendations", eval_recommendations)]:
         if which in (name, "all"):
             rs = fn()
             result[name] = {"passed": sum(x["ok"] for x in rs), "n": len(rs), "checks": rs}

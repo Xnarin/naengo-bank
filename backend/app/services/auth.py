@@ -10,6 +10,31 @@ from app.security import MAX_FAILS, create_access_token, hash_secret, verify_pin
 from app.services.accounts import new_account_num
 from app.services import verification
 
+DEMO_DOMAIN = "@demo.naengo.invalid"
+
+
+def start_demo(db: Session) -> dict:
+    from app.services.demo_history import add_demo_history
+
+    now = now_kst()
+    user = User(email=secrets.token_hex(16) + DEMO_DOMAIN, user_name="체험 사용자",
+                password_hash=hash_secret(secrets.token_urlsafe(32)), pin=hash_secret("123456"))
+    db.add(user)
+    db.flush()
+    for code, name, balance in (("basic", "생활비통장", 1_000_000), ("parking", "비상금통장", 100_000)):
+        product_id = db.scalar(select(AccountProduct.id).where(AccountProduct.code == code))
+        account = Account(user_id=user.id, product_id=product_id, account_num=new_account_num(db),
+                          account_password=user.password_hash, nickname=name, balance=balance)
+        db.add(account)
+        db.flush()
+        db.add(AccountTransaction(account_id=account.id, transaction_type="DEPOSIT", transaction_direction="IN",
+                                  amount=balance, new_balance=balance, counterparty_name="내금고", memo="체험용 가상머니",
+                                  transaction_at=now))
+        if code == "basic":
+            add_demo_history(db, user, account, now)
+    db.commit()
+    return {"access_token": create_access_token(user.id), "token_type": "bearer"}
+
 
 def find_by_email(db: Session, email: str, *, lock: bool = False) -> User | None:
     query = select(User).where(func.lower(User.email) == email.lower())

@@ -10,6 +10,13 @@ from app.models import Account, AccountTransaction, FavoriteRecipient, Transfer,
 from app.security import verify_pin
 from app.services import notifications
 from app.services.accounts import account_usage, assert_allowed, get_owned_account, mask_name
+from app.services.auth import DEMO_DOMAIN
+
+
+def recipient_visible(db: Session, user_id: uuid.UUID, recipient_id: uuid.UUID) -> bool:
+    if user_id == recipient_id:
+        return True
+    return not any(db.get(User, owner).email.endswith(DEMO_DOMAIN) for owner in (user_id, recipient_id))
 
 
 def same_request(done: Transfer, from_id, to_id, amount, memo, auto_id) -> Transfer:
@@ -70,6 +77,8 @@ def transfer(
         if to_account_id not in accounts:
             raise BankError("INVALID_ACCOUNT", "존재하지 않는 계좌예요. 계좌번호를 다시 확인해 주세요.", 404)
         src, dst = accounts[from_account_id], accounts[to_account_id]
+        if not recipient_visible(db, src.user_id, dst.user_id):
+            raise BankError("INVALID_ACCOUNT", "체험에서는 내 통장끼리만 이체할 수 있어요.", 404)
 
         assert_allowed(src, "WITHDRAW")
         if dst.status != "ACTIVE":
@@ -123,9 +132,9 @@ def transfer(
         raise
 
 
-def find_recipient(db: Session, account_num: str) -> Account:
+def find_recipient(db: Session, account_num: str, user_id: uuid.UUID) -> Account:
     account = db.scalar(select(Account).where(Account.account_num == account_num))
-    if account is None:
+    if account is None or not recipient_visible(db, user_id, account.user_id):
         raise BankError("INVALID_ACCOUNT", "존재하지 않는 계좌예요. 계좌번호를 다시 확인해 주세요.", 404)
     if account.status != "ACTIVE":
         raise BankError("INVALID_ACCOUNT", "받을 수 없는 계좌예요(거래중지 또는 해지). 받는 분께 확인해 주세요.")
@@ -138,7 +147,7 @@ def recipient_name(db: Session, account: Account, user_id: uuid.UUID) -> str:
 
 
 def check_recipient(db: Session, user_id: uuid.UUID, account_num: str) -> dict:
-    account = find_recipient(db, account_num)
+    account = find_recipient(db, account_num, user_id)
     return {"account_num": account.account_num, "holder_name": recipient_name(db, account, user_id), "mine": account.user_id == user_id}
 
 
@@ -164,7 +173,7 @@ def create_transfer(db: Session, user: User, *, from_account_id: uuid.UUID, to_a
     source = get_owned_account(db, user.id, from_account_id)
     # 완료된 요청은 계좌 상태가 바뀌어도 원래 결과를 재조회할 수 있다.
     destination = db.scalar(select(Account).where(Account.account_num == to_account_num))
-    if destination is None:
+    if destination is None or not recipient_visible(db, user.id, destination.user_id):
         raise BankError("INVALID_ACCOUNT", "존재하지 않는 계좌예요. 계좌번호를 다시 확인해 주세요.", 404)
     verify_pin(db, user, pin, account=source)
     item = transfer(db, source.id, destination.id, amount, f"user:{user.id}:{idempotency_key}", memo)
@@ -194,7 +203,7 @@ def add_favorite(db: Session, user_id: uuid.UUID, account_num: str, alias: str |
     user = db.scalar(select(User).where(User.id == user_id).with_for_update().execution_options(populate_existing=True))
     if user is None or user.status != "ACTIVE":
         raise BankError("AUTH", "사용할 수 없는 계정이에요.", 401)
-    account = find_recipient(db, account_num)
+    account = find_recipient(db, account_num, user_id)
     item = db.scalar(select(FavoriteRecipient).where(FavoriteRecipient.user_id == user_id, FavoriteRecipient.account_num == account_num))
     if item is None:
         item = FavoriteRecipient(user_id=user_id, account_num=account_num, holder_name=db.get(User, account.user_id).user_name, alias=alias)

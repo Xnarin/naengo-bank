@@ -344,7 +344,7 @@ export function IssueCard() {
   const preview: Card = { id: 'preview', owner: '', name: '내금고 체크카드', last4: '0000', status: 'active', notify: true, ...f };
 
   return (
-    <Page back={step > 0 ? () => setStep(step - 1) : true} title="체크카드 발급" footer={footer}>
+    <Page back={step > 0 ? () => setStep(step - 1) : true} title="체크카드 발급" footer={footer} className="overflow-x-clip">
       <Steps steps={['연결 계좌', '설정', '확인']} current={step} />
 
       {step === 0 && (
@@ -378,7 +378,7 @@ export function IssueCard() {
           <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="카드 디자인">
             {THEMES.map((t) => (
               <button key={t.id} role="radio" aria-checked={f.theme === t.id} onClick={() => setF({ ...f, theme: t.id })}
-                className={cn('rounded-xl border-2 p-1.5 text-[13px]', f.theme === t.id ? 'border-brand font-semibold' : 'border-transparent text-sub')}>
+                className={cn('min-w-0 rounded-xl border-2 p-1.5 text-[13px] [&>div]:w-full [&>div]:p-1.5', f.theme === t.id ? 'border-brand font-semibold' : 'border-transparent text-sub')}>
                 <CheckCard card={{ ...preview, theme: t.id }} small />
                 <span className="mt-1.5 block">{t.label}</span>
               </button>

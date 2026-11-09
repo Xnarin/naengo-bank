@@ -8,10 +8,11 @@
 
 import re
 import uuid
+from typing import Literal
 from datetime import date, datetime, time
 
 from langchain_core.tools import tool
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.errors import BankError
@@ -19,6 +20,8 @@ from app.models import KST, Account, AccountProduct, AccountTransaction, Card, C
 from app.services import accounts as acc_svc
 from app.services import cards as card_svc
 from app.services import insights
+from app.services import recommendations
+from app.services.transfers import find_recipient, list_favorites, recent_recipients, recipient_visible
 
 
 def mask_num(num: str) -> str:
@@ -51,39 +54,69 @@ def match_accounts(db: Session, user_id: uuid.UUID, hint: str | None) -> list[Ac
     return hit
 
 
+def recipient_choice(label: str, account_num: str) -> dict:
+    return {"label": f"{label} · {mask_num(account_num)}", "value": account_num}
+
+
+def recipient_choices(db: Session, user_id: uuid.UUID) -> list[dict]:
+    own = [recipient_choice(account_label(db, a), a.account_num) for a in my_accounts(db, user_id) if a.status == "ACTIVE"]
+    own_numbers = {item["value"] for item in own}
+    blocks = []
+    for title, rows in (("즐겨찾기", list_favorites(db, user_id)), ("최근 송금한 사람", recent_recipients(db, user_id))):
+        seen = own_numbers.copy()
+        options = []
+        for row in rows:
+            number = row["account_num"]
+            if number in seen:
+                continue
+            try:
+                find_recipient(db, number, user_id)
+            except BankError:
+                continue
+            seen.add(number)
+            options.append(recipient_choice(row.get("alias") or row["holder_name"], number))
+            if len(options) == 3:
+                break
+        if options:
+            blocks.append({"kind": "choices", "title": title, "options": options})
+    if len(own) > 1:
+        blocks.append({"kind": "choices", "title": "내 계좌", "options": own})
+    return [*blocks, {"kind": "choices", "options": [{"label": "계좌번호 직접 입력"}]}]
+
+
 def find_recipients(db: Session, user_id: uuid.UUID, who: str) -> list[dict]:
-    """받는 분 후보. 계좌번호면 그 계좌, 아니면 즐겨찾기(별칭·예금주) → 최근 보낸 상대 이름 순.
+    """받는 분 후보. 계좌번호, 내 계좌 이름, 즐겨찾기 별칭·예금주와 최근 송금 이름을 확인한다.
     반환: [{account_id, account_num, holder_name, alias}] — 2명 이상이거나 0명이면 호출자가 되묻는다."""
     digits = re.sub(r"\D", "", who)
-    if len(digits) >= 10:
-        acc = db.scalar(select(Account).where(func.replace(Account.account_num, "-", "") == digits, Account.status != "CLOSED"))
-        if acc is None:
+    if len(digits) == 11:
+        try:
+            acc = find_recipient(db, f"{digits[:3]}-{digits[3:7]}-{digits[7:]}", user_id)
+        except BankError:
             return []
-        return [{"account_id": acc.id, "account_num": acc.account_num, "holder_name": db.get(User, acc.user_id).user_name, "alias": None}]
+        return [{"account_id": acc.id, "account_num": acc.account_num, "holder_name": db.get(User, acc.user_id).user_name,
+                 "alias": account_label(db, acc) if acc.user_id == user_id else None}]
     w = who.strip()
     if re.search(r"통장|계좌", w):  # "생활비통장으로" = 내 계좌끼리 이체
         me = db.get(User, user_id).user_name
-        own = match_accounts(db, user_id, w)
+        own = [a for a in match_accounts(db, user_id, w) if a.status == "ACTIVE"]
         if own:
             return [{"account_id": a.id, "account_num": a.account_num, "holder_name": me, "alias": account_label(db, a)} for a in own]
-    favs =db.scalars(select(FavoriteRecipient).where(FavoriteRecipient.user_id == user_id)).all()
+    favs = db.scalars(select(FavoriteRecipient).where(FavoriteRecipient.user_id == user_id)).all()
     hits = [f for f in favs if w in (f.alias or "") or w == f.holder_name or (len(w) >= 2 and w in f.holder_name)]
     out, seen = [], set()
     for f in hits:
-        acc = db.scalar(select(Account).where(Account.account_num == f.account_num, Account.status != "CLOSED"))
-        if acc and acc.id not in seen:
+        acc = db.scalar(select(Account).where(Account.account_num == f.account_num, Account.status == "ACTIVE"))
+        if acc and acc.id not in seen and recipient_visible(db, user_id, acc.user_id):
             seen.add(acc.id)
             out.append({"account_id": acc.id, "account_num": acc.account_num, "holder_name": f.holder_name, "alias": f.alias})
-    if out:
-        return out
-    # 최근 1년 내 보낸 상대 중 이름이 같은 사람
+    # 보낸 상대 중 이름이 같은 계좌도 확인해 즐겨찾기의 동명이인과 구분한다.
     mine = [a.id for a in my_accounts(db, user_id)]
     rows = db.execute(select(AccountTransaction.counterparty_name, AccountTransaction.counterparty_account)
                       .where(AccountTransaction.account_id.in_(mine), AccountTransaction.transaction_direction == "OUT",
                              AccountTransaction.counterparty_name == w).distinct()).all()
     for name, num in rows:
-        acc = db.scalar(select(Account).where(Account.account_num == num, Account.status != "CLOSED"))
-        if acc and acc.id not in seen and acc.user_id != user_id:
+        acc = db.scalar(select(Account).where(Account.account_num == num, Account.status == "ACTIVE"))
+        if acc and acc.id not in seen and acc.user_id != user_id and recipient_visible(db, user_id, acc.user_id):
             seen.add(acc.id)
             out.append({"account_id": acc.id, "account_num": num, "holder_name": name, "alias": None})
     return out
@@ -182,4 +215,11 @@ def make_tools(db: Session, user_id: uuid.UUID):
         같은 가맹점·25~35일 간격·금액 차이 10% 이내. 실제 구독 확정이나 해지가 아니다."""
         return insights.detect_subscriptions(db, user_id)
 
-    return [list_accounts, get_transactions, get_limits, card_spending, spending_analysis, balance_forecast, detect_subscriptions]
+    @tool
+    def recommend_accounts(purpose: Literal["general", "spending", "savings", "group"] = "general") -> dict:
+        """내 소비·급여성 입금·보유 상품으로 가상 입출금통장 비교 후보를 계산한다.
+        purpose: 명시한 생활비 spending, 대기자금 savings, 모임 group, 미지정 general.
+        가입 자격·우대 적용을 확정하거나 자동 개설하지 않는다."""
+        return recommendations.recommend_accounts(db, user_id, purpose)
+
+    return [list_accounts, get_transactions, get_limits, card_spending, spending_analysis, balance_forecast, detect_subscriptions, recommend_accounts]

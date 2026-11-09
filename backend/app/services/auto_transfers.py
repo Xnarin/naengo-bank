@@ -52,7 +52,7 @@ def register(db: Session, user: User, *, from_account_id, to_account_num: str, a
     assert_allowed(source, "WITHDRAW")
     if type(amount) is not int or amount <= 0:
         raise BankError("INVALID_AMOUNT", "이체 금액을 확인해 주세요.")
-    target = find_recipient(db, to_account_num)
+    target = find_recipient(db, to_account_num, user.id)
     if target.id == source.id:
         raise BankError("SAME_ACCOUNT", "출금 계좌와 같은 계좌로는 보낼 수 없어요.")
     now = now_kst()

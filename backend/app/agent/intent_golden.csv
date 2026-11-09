@@ -1,4 +1,8 @@
 message,intent,note
+내 소비패턴에 맞는 입출금통장 추천해줘,PRODUCT_RECOMMENDATION,개인 데이터 기반 추천
+입출금통장 추천해줘,PRODUCT_RECOMMENDATION,추천은 먼저 분석
+생활비 관리용 통장을 추천해줘,PRODUCT_RECOMMENDATION,생활비 목적
+파킹통장 금리가 얼마인지 알려줘,FINANCE_QA,추천이 아닌 상품 정보
 이번 달 돈이 부족할 것 같은데 왜지? 어떻게 하지?,ACCOUNT_QUERY,코드로 계산하는 소비·잔액 분석
 다음달 얼마 정도 쓸까?,ACCOUNT_QUERY,미래 지출 예측
 내 구독 중인 거 찾아줘,ACCOUNT_QUERY,정기결제 후보 탐지

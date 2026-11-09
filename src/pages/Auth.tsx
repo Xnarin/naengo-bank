@@ -3,7 +3,6 @@ import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { CircleAlert, CircleCheck } from 'lucide-react';
 import { PinPad } from '../components/bank';
 import { Button, Checkbox, Field, Logo, Page, Steps } from '../components/ui';
-import { DEMO_PIN, TEST_ACCOUNTS } from '../data/mock';
 import { EMAIL_RE, useBank } from '../store';
 import { api } from '../api/http';
 import type { Term } from '../api/bank';
@@ -56,7 +55,7 @@ function PinLogin({ onEmail }: { onEmail: () => void }) {
         <Brand />
         <h1 className="mt-10 font-display text-[24px] leading-snug font-bold"><span className="text-brand">{deviceUser.name}</span>님,<br />간편비밀번호를 눌러 주세요</h1>
         <PinPad onComplete={go} error={error} busy={busy} locked={error?.locked || deviceUser.locked}
-          message={deviceUser.locked ? '로그인이 잠긴 계정이에요.' : TEST_ACCOUNTS.some((account) => account.email === deviceUser.email) ? <>예시 비밀번호 <span className="num font-semibold">{DEMO_PIN}</span></> : ' '} />
+          message={deviceUser.locked ? '로그인이 잠긴 계정이에요.' : ' '} />
         {(error?.locked || deviceUser.locked) && <Link to="/reset-password" className="mt-3 text-center text-[14px] font-semibold text-brand">비밀번호 재설정으로 잠금 풀기</Link>}
         <div className="mt-auto flex justify-center gap-4 pt-8 text-[14px] text-sub">
           <button onClick={onEmail} className="underline-offset-2 hover:underline">이메일로 로그인</button>
@@ -69,7 +68,7 @@ function PinLogin({ onEmail }: { onEmail: () => void }) {
 }
 
 function EmailLogin({ onPin }: { onPin?: () => void }) {
-  const { login } = useBank();
+  const { login, startDemo } = useBank();
   const navigate = useNavigate();
   const loc = useLocation();
   const state = loc.state as { from?: string; signedUp?: string; reset?: string } | null;
@@ -78,6 +77,20 @@ function EmailLogin({ onPin }: { onPin?: () => void }) {
   const [errs, setErrs] = useState<{ email?: string; pw?: string }>({});
   const [fail, setFail] = useState<{ msg: string; locked: boolean } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
+
+  async function tryDemo() {
+    setFail(null);
+    setDemoLoading(true);
+    try {
+      await startDemo();
+      navigate('/', { replace: true });
+    } catch (error) {
+      setFail({ msg: (error as Error).message, locked: false });
+    } finally {
+      setDemoLoading(false);
+    }
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -119,11 +132,12 @@ function EmailLogin({ onPin }: { onPin?: () => void }) {
         {fail && <Alert>{fail.msg}{fail.locked && <> <Link to="/reset-password" state={{ email }} className="font-semibold underline">재설정하기</Link></>}</Alert>}
 
         <div className="mt-auto pt-10">
-          <Button type="submit" size="lg" full loading={loading}>로그인</Button>
+          <Button type="submit" size="lg" full loading={loading} disabled={demoLoading}>로그인</Button>
           {onPin && <button type="button" onClick={onPin} className="mt-3 w-full py-2 text-[14px] text-sub underline-offset-2 hover:underline">간편비밀번호로 로그인</button>}
-          <div className="mt-3 flex justify-center gap-4">
-            {TEST_ACCOUNTS.map((account, index) => <button key={account.email} type="button" onClick={() => { setEmail(account.email); setPw(account.password); }} className="py-2 text-[14px] text-sub underline-offset-2 hover:underline">테스트 {index + 1} 정보 채우기</button>)}
-          </div>
+          <button type="button" onClick={tryDemo} disabled={loading || demoLoading} className="mt-3 w-full py-2 text-[14px] font-semibold text-brand disabled:opacity-50">
+            {demoLoading ? '체험 계정 준비 중…' : '가입 없이 체험하기'}
+          </button>
+          <p className="text-center text-[13px] text-sub">가상 잔액과 소비 내역으로 체험할 수 있어요. 체험용 PIN은 123456이에요.</p>
           <p className="mt-4 text-center text-[14px] text-sub">
             아직 회원이 아니신가요? <Link to="/signup" className="font-semibold text-brand">회원가입</Link>
           </p>

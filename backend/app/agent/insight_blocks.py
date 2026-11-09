@@ -4,6 +4,13 @@
 def insight_block(name: str, result, arguments: dict | None = None) -> dict | None:
     if not isinstance(result, dict):
         return None
+    if name == "recommend_accounts":
+        profile = result["분석"]
+        return {"kind": "recommendationInsight", "status": result["상태"], "start": profile["시작일"], "end": profile["종료일"],
+                "cardTotal": profile["카드소비"], "count": profile["출금건수"], "recurringCount": profile["정기결제후보수"],
+                "question": result["추가질문"], "notes": result["주의"],
+                "items": [{key: product[key] for key in ("code", "name", "owned", "reasons", "maxRate", "baseRate", "conditions", "rateTable", "notices")}
+                          for product in result["추천"]]}
     if name == "spending_analysis":
         return {"kind": "spendingInsight", "start": result["시작일"], "end": result["종료일"],
                 "total": result["전체출금"], "cardTotal": result["카드소비"], "transferTotal": result["용도미확정_이체등출금"],

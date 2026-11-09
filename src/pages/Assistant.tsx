@@ -4,7 +4,7 @@ import { ArrowRight, Bot, CircleAlert, CircleCheck, RotateCcw, SendHorizontal } 
 import { Button, Page, Row } from '../components/ui';
 import { PinSheet } from '../components/bank';
 import { chatClient, type Block, type ChatMessage } from '../api/chat';
-const SUGGESTIONS = ['내 계좌 잔액 알려줘', '지난달 소비 패턴 분석해줘', '이번 달 돈이 부족할까?', '다음달 얼마 정도 쓸까?', '내 구독 중인 거 찾아줘', '송금하고 싶어'];
+const SUGGESTIONS = ['내 계좌 잔액 알려줘', '지난달 소비 패턴 분석해줘', '내 소비패턴에 맞는 통장 추천해줘', '이번 달 돈이 부족할까?', '다음달 얼마 정도 쓸까?', '내 구독 중인 거 찾아줘', '송금하고 싶어'];
 import { productById } from '../data/mock';
 import { cn, fmtDateTime, fmtDay, signedWon, won } from '../lib/format';
 import { useBank } from '../store';
@@ -12,13 +12,14 @@ import { InsightCard } from '../components/InsightCard';
 
 const uid = () => Math.random().toString(36).slice(2);
 /** 그래프 카드는 아바타 들여쓰기를 벗어나 대화 폭을 다 쓴다 */
-const INSIGHT = new Set<Block['kind']>(['spendingInsight', 'forecastInsight', 'subscriptionInsight']);
+const INSIGHT = new Set<Block['kind']>(['spendingInsight', 'forecastInsight', 'subscriptionInsight', 'recommendationInsight']);
 
 export function Assistant() {
   const bank = useBank();
   const { chat, setChat, user } = bank;
   const navigate = useNavigate();
   const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
   const [pinFor, setPinFor] = useState<{ msgId: string; idx: number; threadId: string } | null>(null);
@@ -26,7 +27,7 @@ export function Assistant() {
   const latestAnswerRef = useRef<HTMLDivElement>(null);
   const pending = chat.messages.some((m) => m.blocks?.some((b) => b.kind === 'agentConfirm' && b.status === 'pending'));
   useEffect(() => {
-    const hasChart = chat.messages.at(-1)?.blocks?.some((block) => ['spendingInsight', 'forecastInsight', 'subscriptionInsight'].includes(block.kind));
+    const hasChart = chat.messages.at(-1)?.blocks?.some((block) => INSIGHT.has(block.kind));
     (hasChart ? latestAnswerRef.current : endRef.current)?.scrollIntoView({ behavior: 'smooth', block: hasChart ? 'start' : 'end' });
   }, [chat.messages.length, busy]);
   const push = (m: ChatMessage) => setChat((c) => ({ ...c, messages: [...c.messages, m] }));
@@ -34,11 +35,11 @@ export function Assistant() {
     setChat((c) => ({ ...c, messages: c.messages.map((m) => m.id !== msgId ? m : { ...m,
       blocks: m.blocks?.map((b, i) => i === idx && b.kind === 'agentConfirm' ? { ...b, status } : b) }) }));
   }
-  async function ask(text: string, addUser = true) {
+  async function ask(text: string, addUser = true, label?: string) {
     const message = text.trim();
     if (!message || busyRef.current || pending) return;
     busyRef.current = true; setBusy(true); setInput('');
-    if (addUser) push({ id: uid(), role: 'user', text: message });
+    if (addUser) push({ id: uid(), role: 'user', text: label ?? message });
     try {
       const res = await chatClient.send({ message, context: chat.context, snapshot: {
         userName: user?.name ?? '', accounts: bank.myAccounts, txs: bank.db.txs, cards: bank.myCards,
@@ -76,7 +77,7 @@ export function Assistant() {
         {chat.messages.map((m) => m.role === 'user'
           ? <div key={m.id} className="rise flex justify-end"><p className="max-w-[80%] rounded-2xl rounded-br-md bg-brand px-4 py-2.5 text-[15px] text-white">{m.text}</p></div>
           : <div key={m.id} ref={m.id === lastId ? latestAnswerRef : undefined} className="rise flex scroll-mt-20 gap-2"><Avatar /><div className="min-w-0 flex-1 space-y-2">
-            {m.blocks?.map((b, i) => <div key={i} className={INSIGHT.has(b.kind) ? '-ml-10' : undefined}><BlockView b={b} active={m.id === lastId && !busy} onAsk={(s) => void ask(s)} onGo={(to) => navigate(to)}
+            {m.blocks?.map((b, i) => <div key={i} className={INSIGHT.has(b.kind) ? '-ml-10' : undefined}><BlockView b={b} active={m.id === lastId && !busy} onAsk={(s, label) => void ask(s, true, label)} onInput={() => inputRef.current?.focus()} onGo={(to) => navigate(to)}
               onConfirm={() => b.kind === 'agentConfirm' && setPinFor({ msgId: m.id, idx: i, threadId: b.threadId })}
               onCancel={() => { if (b.kind === 'agentConfirm') void confirm(m.id, i, b.threadId, false); }} /></div>)}
             {m.retryText && <Button size="sm" variant="secondary" disabled={busy || pending} onClick={() => { setChat((c) => ({ ...c, messages: c.messages.filter((x) => x.id !== m.id) })); void ask(m.retryText!, false); }}>다시 시도</Button>}
@@ -85,7 +86,7 @@ export function Assistant() {
         <div ref={endRef} className="h-28" />
       </div>
       <form onSubmit={submit} className="fixed bottom-16 left-1/2 z-30 flex w-full max-w-[430px] -translate-x-1/2 items-center gap-2 border-t border-line bg-paper px-4 py-2.5">
-        <input value={input} maxLength={500} disabled={pending} onChange={(e) => setInput(e.target.value)} placeholder={pending ? '요청을 확인하거나 취소해 주세요' : '메시지를 입력하세요'} aria-label="메시지 입력" className="h-11 min-w-0 flex-1 rounded-full bg-surface px-4 text-[15px] outline-none focus:ring-2 focus:ring-brand/30" />
+        <input ref={inputRef} value={input} maxLength={500} disabled={pending} onChange={(e) => setInput(e.target.value)} placeholder={pending ? '요청을 확인하거나 취소해 주세요' : '메시지를 입력하세요'} aria-label="메시지 입력" className="h-11 min-w-0 flex-1 rounded-full bg-surface px-4 text-[15px] outline-none focus:ring-2 focus:ring-brand/30" />
         <button type="submit" disabled={!input.trim() || busy || pending} aria-label="전송" className="grid size-11 shrink-0 place-items-center rounded-full bg-brand text-white disabled:bg-line"><SendHorizontal className="size-5" /></button>
       </form>
       <PinSheet open={!!pinFor} onClose={() => setPinFor(null)} purpose="요청을 실행하려면" onPass={async (pin) => { if (pinFor) await confirm(pinFor.msgId, pinFor.idx, pinFor.threadId, true, pin); }} />
@@ -124,15 +125,16 @@ function TextBubble({ text }: { text: string }) {
   );
 }
 
-function BlockView({ b, active, onAsk, onGo, onConfirm, onCancel }: {
-  b: Block; active: boolean; onAsk: (t: string) => void; onGo: (to: string) => void; onConfirm: () => void; onCancel: () => void;
+function BlockView({ b, active, onAsk, onInput, onGo, onConfirm, onCancel }: {
+  b: Block; active: boolean; onAsk: (t: string, label?: string) => void; onInput: () => void; onGo: (to: string) => void; onConfirm: () => void; onCancel: () => void;
 }) {
   const { myAccounts } = useBank();
   switch (b.kind) {
     case 'spendingInsight':
     case 'forecastInsight':
     case 'subscriptionInsight':
-      return <InsightCard block={b} />;
+    case 'recommendationInsight':
+      return <InsightCard block={b} onGo={onGo} />;
     case 'text':
       return <TextBubble text={b.text} />;
 
@@ -250,13 +252,16 @@ function BlockView({ b, active, onAsk, onGo, onConfirm, onCancel }: {
 
     case 'choices':
       return (
-        <div className="flex flex-wrap gap-2">
-          {b.options.map((o) => (
-            <button key={o.label} disabled={!active} onClick={() => onAsk(o.value)}
-              className={chip}>
-              {o.label}
-            </button>
-          ))}
+        <div>
+          {b.title && <p className="mb-1.5 text-[13px] font-semibold text-sub">{b.title}</p>}
+          <div className="flex flex-wrap gap-2">
+            {b.options.map((o) => (
+              <button key={o.value ?? o.label} disabled={!active}
+                onClick={() => o.value === undefined ? onInput() : onAsk(o.value, b.title ? o.label : undefined)} className={chip}>
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
       );
 

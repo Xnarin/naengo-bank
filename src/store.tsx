@@ -15,6 +15,15 @@ const emptyDB = (): DB => ({ users: [], accounts: [], txs: [], cards: [], cardTx
 type Me = { id: string; email: string; user_name: string };
 const stored = <T,>(key: string, fallback: T): T => { try { return JSON.parse(localStorage.getItem(key) ?? 'null') ?? fallback; } catch { return fallback; } };
 const normalizeNumber = (value: string) => { const d = value.replace(/\D/g, ''); return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7, 11)}`; };
+const SYNC_INTERVAL = 10_000;
+
+async function loadInBatches<T, R>(rows: T[], load: (row: T) => Promise<R>, size: number) {
+  const result: R[] = [];
+  for (let i = 0; i < rows.length; i += size) {
+    result.push(...await Promise.all(rows.slice(i, i + size).map(load)));
+  }
+  return result;
+}
 
 function useBankState() {
   const [{ db, user }, setState] = useState<{ db: DB; user: User | null }>({ db: emptyDB(), user: null });
@@ -27,45 +36,64 @@ function useBankState() {
   const [idleMinutes, setIdle] = useState<number>(() => stored('naengo-idle', 10));
   const lastActive = useRef(Date.now());
   const epoch = useRef(0);
-  const refreshing = useRef(0);
+  const refreshTail = useRef<{ version: number; task: Promise<boolean> } | null>(null);
+  const lastRefresh = useRef(0);
   const codeFlow = useRef<{ email: string; purpose: string; code?: string } | null>(null);
   const favorites = useRef<Favorite[]>([]);
   function toast(message: string) { setToastMsg(message); clearTimeout(timer.current); timer.current = setTimeout(() => setToastMsg(null), 2500); }
   function logout() {
     epoch.current++; setToken(null); setState({ db: emptyDB(), user: null }); setChat(emptyChat);
+    lastRefresh.current = 0;
     setNotices([]); setUnread(0); favorites.current = []; codeFlow.current = null;
     setLoading(false); setLoadError('');
   }
   function forgetDevice() { localStorage.removeItem('naengo-api-device'); setDevice(null); }
 
-  async function refresh(background = false) {
+  async function refresh(background = false): Promise<boolean> {
     const token = getToken(); if (!token) return false;
-    if (background && refreshing.current) return false;
-    refreshing.current++;
-    const version = ++epoch.current;
+    const version = epoch.current;
+    const queued = refreshTail.current?.version === version ? refreshTail.current.task : null;
+    if (background && (queued || Date.now() - lastRefresh.current < SYNC_INTERVAL)) {
+      return queued ?? Promise.resolve(false);
+    }
+    const task = (queued ?? Promise.resolve()).then(() => loadSnapshot(token, version));
+    refreshTail.current = { version, task };
+    void task.finally(() => { if (refreshTail.current?.task === task) refreshTail.current = null; });
+    return task;
+  }
+
+  async function loadSnapshot(token: string, version: number) {
+    if (version !== epoch.current || getToken() !== token) return false;
+    const read = <T,>(path: string) => {
+      if (version !== epoch.current || getToken() !== token) throw new Error('Session changed');
+      return api<T>(path);
+    };
+    lastRefresh.current = Date.now();
     if (!user) setLoading(true);
     try {
-      const me = await api<Me>('/me');
+      const me = await read<Me>('/me');
       const [active, closed, cards, schedules, favs, recent, notices] = await Promise.all([
-        api<AccountResponse[]>('/accounts'), api<AccountResponse[]>('/accounts?status=closed'), api<CardResponse[]>('/cards'),
-        api<ScheduleResponse[]>('/auto-transfers'), api<Favorite[]>('/favorite-recipients'), api<Recipient[]>('/transfers/recent'),
-        api<{ items: { id: number; type: string; message: string; created_at: string; read_at: string | null }[]; unread: number }>('/notifications'),
+        read<AccountResponse[]>('/accounts'), read<AccountResponse[]>('/accounts?status=closed'), read<CardResponse[]>('/cards'),
+        read<ScheduleResponse[]>('/auto-transfers'), read<Favorite[]>('/favorite-recipients'), read<Recipient[]>('/transfers/recent'),
+        read<{ items: { id: number; type: string; message: string; created_at: string; read_at: string | null }[]; unread: number }>('/notifications'),
       ]);
       const rows = [...active, ...closed];
       const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
-      const [details, txLists, payLists] = await Promise.all([
-        Promise.all(rows.map((a) => api<AccountResponse>(`/accounts/${a.id}`))),
-        Promise.all(rows.map((a) => api<TransactionResponse[]>(`/accounts/${a.id}/transactions?from=1900-01-01&to=${today}`))),
-        Promise.all(cards.map((c) => api<PaymentResponse[]>(`/cards/${c.id}/payments`))),
-      ]);
+      const accountData = await loadInBatches(rows, (a) => Promise.all([
+        read<AccountResponse>(`/accounts/${a.id}`),
+        read<TransactionResponse[]>(`/accounts/${a.id}/transactions?from=1900-01-01&to=${today}`),
+      ]), 3);
+      const payLists = await loadInBatches(cards, (c) => read<PaymentResponse[]>(`/cards/${c.id}/payments`), 6);
+      const details = accountData.map(([account]) => account);
+      const transactions = accountData.flatMap(([, txs]) => txs);
       if (version !== epoch.current || getToken() !== token) return false;
       const profile: User = { name: me.user_name, email: me.email, favRecipients: favs.map((f) => f.account_num) };
       const recipients = new Map<string, { number: string; name: string; count: number; last: string; fav: boolean }>();
-      for (const r of recent) recipients.set(r.account_num, { number: r.account_num, name: r.holder_name, count: txLists.flat().filter((t) => t.transaction_direction === 'OUT' && t.counterparty_account === r.account_num).length, last: r.last_sent_at ?? '', fav: false });
+      for (const r of recent) recipients.set(r.account_num, { number: r.account_num, name: r.holder_name, count: transactions.filter((t) => t.transaction_direction === 'OUT' && t.counterparty_account === r.account_num).length, last: r.last_sent_at ?? '', fav: false });
       for (const f of favs) recipients.set(f.account_num, { number: f.account_num, name: f.alias || f.holder_name, count: recipients.get(f.account_num)?.count ?? 0, last: recipients.get(f.account_num)?.last ?? '', fav: true });
       favorites.current = favs;
       const themes = stored<Record<string, CardTheme>>('naengo-card-themes', {});
-      setState({ user: profile, db: { users: [profile], accounts: details.map((a) => accountFrom(a, me.email)), txs: txLists.flat().map(txFrom),
+      setState({ user: profile, db: { users: [profile], accounts: details.map((a) => accountFrom(a, me.email)), txs: transactions.map(txFrom),
         cards: cards.map((c) => ({ ...cardFrom(c, me.email), theme: themes[c.id] ?? 'navy' })), cardTxs: payLists.flat().map(paymentFrom),
         scheduled: schedules.filter((s) => s.cycle === 'ONCE').map((s) => scheduledFrom(s, me.email)),
         autoTransfers: schedules.filter((s) => s.cycle !== 'ONCE').map((s) => autoFrom(s, me.email)), readAt: {},
@@ -76,24 +104,27 @@ function useBankState() {
         title: n.message, sub: '', read: !!n.read_at,
         to: n.type === 'CARD_PAYMENT' ? '/cards' : n.type.startsWith('AUTO_TRANSFER_') ? '/auto-transfers' : n.type === 'TRANSFER_IN' ? '/' : '/settings' })));
       setUnread(notices.unread); setLoadError('');
-      setDevice({ name: profile.name, email: profile.email });
-      localStorage.setItem('naengo-api-device', JSON.stringify({ name: profile.name, email: profile.email }));
+      if (!profile.email.endsWith('@demo.naengo.invalid')) {
+        setDevice({ name: profile.name, email: profile.email });
+        try { localStorage.setItem('naengo-api-device', JSON.stringify({ name: profile.name, email: profile.email })); }
+        catch { /* 브라우저에 로그인 정보를 기억할 수 없는 경우 */ }
+      }
       return true;
     } catch (error) {
       if (version === epoch.current && getToken()) setLoadError((error as Error).message);
       return false;
-    } finally { refreshing.current--; if (version === epoch.current) setLoading(false); }
+    } finally { if (version === epoch.current) setLoading(false); }
   }
   const refreshRef = useRef(refresh); refreshRef.current = refresh;
   const [notices, setNotices] = useState<Notice[]>([]);
   const [unread, setUnread] = useState(0);
   useEffect(() => {
-    void refreshRef.current();
+    void refreshRef.current(true);
     const expired = () => { logout(); toast('로그인이 만료됐어요. 다시 로그인해 주세요.'); };
     const active = () => { lastActive.current = Date.now(); };
     window.addEventListener('naengo-auth-expired', expired);
     window.addEventListener('pointerdown', active); window.addEventListener('keydown', active);
-    return () => { epoch.current++; window.removeEventListener('naengo-auth-expired', expired); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); clearTimeout(timer.current); };
+    return () => { epoch.current++; lastRefresh.current = 0; window.removeEventListener('naengo-auth-expired', expired); window.removeEventListener('pointerdown', active); window.removeEventListener('keydown', active); clearTimeout(timer.current); };
   }, []);
   useEffect(() => {
     const sync = () => {
@@ -101,7 +132,7 @@ function useBankState() {
       if (Date.now() - lastActive.current >= idleMinutes * 60_000) { logout(); toast('일정 시간 사용이 없어 로그아웃했어요.'); }
       else if (document.visibilityState === 'visible') void refreshRef.current(true);
     };
-    const poll = setInterval(sync, 10_000);
+    const poll = setInterval(sync, SYNC_INTERVAL);
     window.addEventListener('focus', sync); window.addEventListener('online', sync);
     document.addEventListener('visibilitychange', sync);
     return () => { clearInterval(poll); window.removeEventListener('focus', sync); window.removeEventListener('online', sync); document.removeEventListener('visibilitychange', sync); };
@@ -111,14 +142,17 @@ function useBankState() {
     let result: T;
     try { result = await api<T>(path, body, method); }
     catch (error) { if (error instanceof BankError && error.code === 'PIN_LOCKED') await refresh(); throw error; }
-    if (!await refresh()) toast('처리는 완료됐지만 최신 정보를 불러오지 못했어요. 새로고침해 주세요.');
+    await refresh();
     return result;
   }
   async function login(email: string, secret: string, pin = false) {
     const result = await api<{ access_token: string }>(pin ? '/auth/login/pin' : '/auth/login', { email, [pin ? 'pin' : 'password']: secret });
+    await enterSession(result.access_token);
+  }
+  async function enterSession(token: string) {
     logout();
     setLoading(true);
-    setToken(result.access_token); lastActive.current = Date.now();
+    setToken(token); lastActive.current = Date.now();
     if (!await refresh()) throw new BankError('NETWORK', '로그인 후 정보를 불러오지 못했어요. 다시 시도해 주세요.');
   }
   async function sendCode(email: string, purpose: string) {
@@ -136,6 +170,10 @@ function useBankState() {
     loading, loadError, refresh, chat, setChat, toastMsg, toast, notices, unread,
     simulateError: false, setSimulateError: (_: boolean) => {}, resetDemo: () => void refresh(),
     login: (email: string, password: string) => login(email, password),
+    async startDemo() {
+      const result = await api<{ access_token: string }>('/auth/demo', {});
+      await enterSession(result.access_token);
+    },
     loginWithPin: (email: string, pin: string) => login(email, pin, true), logout,
     forgetDevice,
     idleMinutes, setIdleMinutes(value: number) { setIdle(value); localStorage.setItem('naengo-idle', JSON.stringify(value)); },
@@ -255,4 +293,4 @@ type Bank = ReturnType<typeof useBankState>;
 const Context = createContext<Bank | null>(null);
 export function BankProvider({ children }: { children: ReactNode }) { return <Context.Provider value={useBankState()}>{children}</Context.Provider>; }
 export function useBank() { const value = useContext(Context); if (!value) throw new Error('BankProvider missing'); return value; }
-export function useLoad(_deps: unknown[] = [], _ms = 0) { const bank = useBank(); return { state: bank.loading ? 'loading' as const : bank.loadError ? 'error' as const : 'ready' as const, retry: () => void bank.refresh() }; }
+export function useLoad(_deps: unknown[] = [], _ms = 0) { const bank = useBank(); return { state: bank.loading ? 'loading' as const : !bank.user && bank.loadError ? 'error' as const : 'ready' as const, retry: () => void bank.refresh() }; }

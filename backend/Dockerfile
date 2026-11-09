@@ -9,6 +9,7 @@ COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
 COPY rag /app/rag
+COPY data/products.json /app/data/products.json
 ENV PATH="/app/backend/.venv/bin:$PATH"
 EXPOSE 8000
 CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

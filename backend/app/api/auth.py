@@ -104,6 +104,11 @@ def signup(body: SignupIn, db: Session = Depends(get_db)):
     return {"id": auth.signup(db, **body.model_dump()).id}
 
 
+@router.post("/auth/demo", status_code=201)
+def start_demo(db: Session = Depends(get_db)):
+    return auth.start_demo(db)
+
+
 @router.post("/auth/login")
 def login(body: LoginIn, request: Request, db: Session = Depends(get_db)):
     return auth.login(db, body.email, body.password, use_pin=False,

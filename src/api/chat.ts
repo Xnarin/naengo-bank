@@ -16,6 +16,10 @@ export interface TransferDraft {
 export type ConfirmStatus = 'pending' | 'processing' | 'done' | 'failed' | 'cancelled';
 
 export type InsightBlock =
+  | { kind: 'recommendationInsight'; status: string; start: string; end: string; cardTotal: number; count: number;
+      recurringCount: number; question?: string | null; notes: string[];
+      items: { code: string; name: string; owned: boolean; reasons: string[]; maxRate: number; baseRate: number;
+        conditions: string[]; rateTable: { label: string; rate: string }[]; notices: string[] }[] }
   | { kind: 'spendingInsight'; start: string; end: string; total: number; cardTotal: number; transferTotal: number;
       categories: { label: string; amount: number; previous?: number }[];
       comparison?: { total: number; delta: number; start: string; end: string }; notes: string[] }
@@ -36,7 +40,7 @@ export type Block =
   | { kind: 'spending'; title: string; total: number; count: number; compare?: { label: string; diff: number }; breakdown?: { category: string; total: number }[]; items: Pick<CardTx, 'id' | 'merchant' | 'date' | 'amount'>[] }
   | { kind: 'products'; productIds: string[] }
   | { kind: 'productInfo'; productId: string; field: 'conditions' | 'benefits' | 'rate' | 'notices' }
-  | { kind: 'choices'; options: { label: string; value: string }[] }
+  | { kind: 'choices'; title?: string; options: { label: string; value?: string }[] }
   | { kind: 'transferConfirm'; draft: Required<Pick<TransferDraft, 'fromId' | 'toNumber' | 'toName' | 'amount'>> & { runAt?: string }; status: ConfirmStatus }
   | { kind: 'scheduledList'; items: { id: string; toName: string; amount: number; runAt: string; fromName: string }[] }
   | { kind: 'links'; links: { label: string; to: string }[] }

@@ -53,12 +53,51 @@ function Delta({ value, suffix }: { value: number; suffix: string }) {
   );
 }
 
-export function InsightCard({ block }: { block: InsightBlock }) {
+export function InsightCard({ block, onGo }: { block: InsightBlock; onGo?: (to: string) => void }) {
   switch (block.kind) {
+    case 'recommendationInsight': return <RecommendationCard block={block} onGo={onGo} />;
     case 'spendingInsight': return <SpendingCard block={block} />;
     case 'forecastInsight': return <ForecastCard block={block} />;
     case 'subscriptionInsight': return <SubscriptionCard block={block} />;
   }
+}
+
+function RecommendationCard({ block: b, onGo }: { block: Extract<InsightBlock, { kind: 'recommendationInsight' }>; onGo?: (to: string) => void }) {
+  const personalized = b.status === '소비패턴기준비교';
+  return <Shell label="나에게 맞는 입출금통장" aside={personalized ? '패턴 기반 비교' : '목적 확인'}
+    notes={<>{b.notes.map((note) => <p key={note}>{note}</p>)}<p className="num">분석 기간 {b.start} ~ {b.end}</p></>}>
+    <p className="mt-3 text-[14px] leading-relaxed text-sub">
+      {personalized ? '소비와 보유 통장을 살펴보고 비교 순서를 정했어요.' : b.status === '상품조건확인필요' ? '현재 상품 조건을 확인하지 못해 비교 후보를 표시하지 않았어요.' : b.question ?? '기록이 짧아 말씀하신 사용 목적을 기준으로 비교해요.'}
+    </p>
+    {personalized && <div className="mt-4 grid grid-cols-2 gap-4 border-y border-line py-3">
+      <div><p className="text-[12px] text-sub">분석 기간 카드 소비</p><p className="num mt-1 text-[17px] font-semibold">{won(b.cardTotal)}</p></div>
+      <div><p className="text-[12px] text-sub">정기결제 후보</p><p className="num mt-1 text-[17px] font-semibold">{b.recurringCount}개</p></div>
+    </div>}
+    <ol className="mt-2 divide-y divide-line">
+      {b.items.map((item, index) => <li key={item.code} className="py-5 last:pb-0">
+        <div className="flex items-center justify-between gap-2 text-[12px]">
+          <span className="font-semibold text-brand">{index === 0 ? '먼저 비교해 보세요' : `비교 후보 ${index + 1}`}</span>
+          {item.owned && <span className="rounded-full bg-surface px-2 py-1 font-medium text-sub">보유 중</span>}
+        </div>
+        <h4 className="mt-2 text-[17px] font-bold">{item.name}</h4>
+        <p className="num mt-1 text-[14px] text-sub">최고 연 <span className="font-semibold text-ink">{item.maxRate.toFixed(1)}%</span> · 적용 조건 확인 필요</p>
+        <ul className="mt-3 space-y-2 text-[14px] leading-relaxed">
+          {item.reasons.map((reason) => <li key={reason} className="flex gap-2"><span aria-hidden className="mt-2 size-1 shrink-0 rounded-full bg-brand" /><span>{reason}</span></li>)}
+        </ul>
+        <details className="mt-3 text-[13px] text-sub">
+          <summary className="cursor-pointer font-medium">가입 조건·금리 구간</summary>
+          <div className="mt-2 space-y-1.5 leading-relaxed">
+            {item.conditions.map((line) => <p key={line}>{line}</p>)}
+            {item.rateTable.map((row) => <p key={row.label}>{row.label}: {row.rate}</p>)}
+            {item.notices.map((line) => <p key={line}>{line}</p>)}
+          </div>
+        </details>
+        <a href={`/products/${encodeURIComponent(item.code)}`} onClick={onGo ? (event) => { event.preventDefault(); onGo(`/products/${encodeURIComponent(item.code)}`); } : undefined}
+          className="mt-4 flex w-full items-center justify-center rounded-full border border-brand/30 py-2.5 text-[14px] font-semibold text-brand hover:bg-brand-soft">상품 자세히 보기</a>
+      </li>)}
+    </ol>
+    <p className="mt-4 text-[12px] leading-relaxed text-sub">가상 상품의 비교 안내예요. 가입·우대 조건은 상품 설명에서 확인해 주세요.</p>
+  </Shell>;
 }
 
 // ── 소비 분석: 도넛 + 이전 기간 비교 ─────────────────────────────

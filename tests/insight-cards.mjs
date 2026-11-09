@@ -29,6 +29,18 @@ try {
     note: '구독 후보', items: [{ name: 'StreamFlix', amount: 14900, count: 3, lastDate: '2026-10-08', billingDay: 8 }] });
   assert.match(subscriptions, /14,900원/);
   assert.match(subscriptions, /매월 8일쯤/);
+  const recommendation = render({ kind: 'recommendationInsight', status: '소비패턴기준비교', start: '2026-08-01', end: '2026-11-06',
+    cardTotal: 15000, count: 5, recurringCount: 3, notes: [],
+    items: [{ code: 'living', name: '내금고 생활비통장', owned: true, reasons: ['카드 소비 15,000원 기준으로 비교해요.'],
+      maxRate: 1.2, baseRate: 0.3, conditions: ['월 50만원 이상 급여 실적 확인'], rateTable: [{ label: '기본금리', rate: '연 0.3%' }], notices: [] }] });
+  assert.match(recommendation, /15,000원/);
+  assert.match(recommendation, /보유 중/);
+  assert.match(recommendation, /href="\/products\/living"/);
+  assert.match(recommendation, /적용 조건 확인 필요/);
+  const coldRecommendation = render({ kind: 'recommendationInsight', status: '데이터부족', start: '', end: '', cardTotal: 0,
+    count: 0, recurringCount: 0, items: [], notes: [], question: '어떤 목적으로 쓸 통장인가요?' });
+  assert.match(coldRecommendation, /어떤 목적으로 쓸 통장인가요/);
+  assert.doesNotMatch(coldRecommendation, /먼저 비교해 보세요/);
   console.log('PASS: negative/flat forecast charts, insufficient data, empty spending, subscription amounts');
 } finally {
   await server.close();

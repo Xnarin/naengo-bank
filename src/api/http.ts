@@ -11,13 +11,19 @@ export function setToken(token: string | null) {
 
 export async function api<T>(path: string, body?: unknown, method = body === undefined ? 'GET' : 'POST'): Promise<T> {
   const token = getToken();
-  let response: Response;
-  try {
-    response = await fetch(`/api${path}`, { method, headers: {
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    }, body: body === undefined ? undefined : JSON.stringify(body) });
-  } catch { throw new BankError('NETWORK', '서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.'); }
+  const options = { method, headers: {
+    ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }, body: body === undefined ? undefined : JSON.stringify(body) };
+  const request = () => fetch(`/api${path}`, options).catch(() => undefined);
+  let response = await request();
+  if (method === 'GET' && (!response || [429, 502, 503, 504].includes(response.status))) {
+    await new Promise((resolve) => setTimeout(resolve, 800 + Math.random() * 800));
+    if (token === getToken()) {
+      response = await request();
+    }
+  }
+  if (!response) throw new BankError('NETWORK', '서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.');
   if (response.status === 204) return undefined as T;
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
