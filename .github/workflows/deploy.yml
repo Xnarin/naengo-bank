@@ -1,6 +1,8 @@
 name: Deploy to EC2
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       publish:
@@ -32,7 +34,7 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: sqlite://
-          JWT_SECRET: ci-only-not-a-production-secret
+          JWT_SECRET: ci-only-not-a-production-secret-value
         run: |
           printf 'GEMINI_API_KEY=ci-placeholder\n' > ../.env
           uv run --locked --python 3.12 pytest -q
@@ -51,7 +53,7 @@ jobs:
           retention-days: 2
 
   deploy:
-    if: inputs.publish
+    if: github.event_name == 'push' || inputs.publish
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
