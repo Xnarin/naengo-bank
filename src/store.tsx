@@ -219,8 +219,8 @@ function useBankState() {
       return { toName: result.to_name, toNumber: result.to_account_num, balanceAfter: result.new_balance,
         tx: { id: result.transfer_id, accountId: input.fromId, date: new Date().toISOString(), type: 'out', amount: result.amount, counterparty: result.to_name, balanceAfter: result.new_balance } };
     },
-    async scheduleTransfer(input: TransferInput & { runAt: string }, pin: string) {
-      const row = await mutate<ScheduleResponse>('/auto-transfers', { from_account_id: input.fromId, to_account_num: normalizeNumber(input.toNumber), amount: input.amount, cycle: 'ONCE', run_at: input.runAt, pin });
+    async scheduleTransfer(input: TransferInput & { runAt: string }, pin: string, key: string) {
+      const row = await mutate<ScheduleResponse>('/auto-transfers', { from_account_id: input.fromId, to_account_num: normalizeNumber(input.toNumber), amount: input.amount, cycle: 'ONCE', run_at: input.runAt, pin, idempotency_key: key });
       return scheduledFrom(row, user!.email);
     },
     async cancelScheduled(id: string) { await mutate(`/auto-transfers/${id}`, undefined, 'DELETE'); },
@@ -260,9 +260,9 @@ function useBankState() {
       }
     },
     async toggleFavRecipient(number: string) { const f = favorites.current.find((r) => r.account_num === number); if (f) await mutate(`/favorite-recipients/${f.id}`, undefined, 'DELETE'); else await mutate('/favorite-recipients', { account_num: number }); },
-    async createAutoTransfer(input: Pick<AutoTransfer, 'fromId' | 'toNumber' | 'amount' | 'cycle' | 'day' | 'startDate' | 'endDate' | 'memo'>, pin: string) {
+    async createAutoTransfer(input: Pick<AutoTransfer, 'fromId' | 'toNumber' | 'amount' | 'cycle' | 'day' | 'startDate' | 'endDate' | 'memo'>, pin: string, key: string) {
       const row = await mutate<ScheduleResponse>('/auto-transfers', { from_account_id: input.fromId, to_account_num: normalizeNumber(input.toNumber), amount: input.amount, cycle: input.cycle.toUpperCase(), run_day: input.cycle === 'weekly' ? (input.day + 6) % 7 : input.day,
-        start_date: input.startDate, end_date: input.endDate || null, memo: input.memo, pin });
+        start_date: input.startDate, end_date: input.endDate || null, memo: input.memo, pin, idempotency_key: key });
       return autoFrom(row, user!.email);
     },
     async stopAutoTransfer(id: string) { await mutate(`/auto-transfers/${id}`, undefined, 'DELETE'); },

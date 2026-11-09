@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Bot, CircleAlert, CircleCheck, RotateCcw, SendHorizontal } from 'lucide-react';
 import { Button, Page, Row } from '../components/ui';
 import { PinSheet } from '../components/bank';
-import { chatClient, type Block, type ChatMessage } from '../api/chat';
+import { chatClient, lookupAgentTransfer, type Block, type ChatMessage } from '../api/chat';
+import { BankError, captureSession } from '../api/http';
 const SUGGESTIONS = ['내 계좌 잔액 알려줘', '지난달 소비 패턴 분석해줘', '내 소비패턴에 맞는 통장 추천해줘', '이번 달 돈이 부족할까?', '다음달 얼마 정도 쓸까?', '내 구독 중인 거 찾아줘', '송금하고 싶어'];
 import { productById } from '../data/mock';
 import { cn, fmtDateTime, fmtDay, signedWon, won } from '../lib/format';
@@ -13,6 +14,8 @@ import { InsightCard } from '../components/InsightCard';
 const uid = () => Math.random().toString(36).slice(2);
 /** 그래프 카드는 아바타 들여쓰기를 벗어나 대화 폭을 다 쓴다 */
 const INSIGHT = new Set<Block['kind']>(['spendingInsight', 'forecastInsight', 'subscriptionInsight', 'recommendationInsight']);
+type AgentConfirmation = Extract<Block, { kind: 'agentConfirm' }>;
+type ConfirmationTarget = { msgId: string; idx: number; action: AgentConfirmation };
 
 export function Assistant() {
   const bank = useBank();
@@ -22,7 +25,7 @@ export function Assistant() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
-  const [pinFor, setPinFor] = useState<{ msgId: string; idx: number; threadId: string } | null>(null);
+  const [pinFor, setPinFor] = useState<ConfirmationTarget | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const latestAnswerRef = useRef<HTMLDivElement>(null);
   const pending = chat.messages.some((m) => m.blocks?.some((b) => b.kind === 'agentConfirm' && b.status === 'pending'));
@@ -31,13 +34,14 @@ export function Assistant() {
     (hasChart ? latestAnswerRef.current : endRef.current)?.scrollIntoView({ behavior: 'smooth', block: hasChart ? 'start' : 'end' });
   }, [chat.messages.length, busy]);
   const push = (m: ChatMessage) => setChat((c) => ({ ...c, messages: [...c.messages, m] }));
-  function setStatus(msgId: string, idx: number, status: 'pending' | 'processing' | 'done' | 'cancelled' | 'failed') {
+  function setStatus(msgId: string, idx: number, status: AgentConfirmation['status']) {
     setChat((c) => ({ ...c, messages: c.messages.map((m) => m.id !== msgId ? m : { ...m,
       blocks: m.blocks?.map((b, i) => i === idx && b.kind === 'agentConfirm' ? { ...b, status } : b) }) }));
   }
   async function ask(text: string, addUser = true, label?: string) {
     const message = text.trim();
     if (!message || busyRef.current || pending) return;
+    const sameSession = captureSession();
     busyRef.current = true; setBusy(true); setInput('');
     if (addUser) push({ id: uid(), role: 'user', text: label ?? message });
     try {
@@ -45,21 +49,56 @@ export function Assistant() {
         userName: user?.name ?? '', accounts: bank.myAccounts, txs: bank.db.txs, cards: bank.myCards,
         cardTxs: bank.db.cardTxs, recipients: [], scheduled: bank.db.scheduled, lookup: () => null, simulateError: false,
       } });
-      setChat((c) => ({ messages: [...c.messages, { id: uid(), role: 'assistant', blocks: res.blocks }], context: res.context }));
+      setChat((c) => sameSession()
+        ? { messages: [...c.messages, { id: uid(), role: 'assistant', blocks: res.blocks }], context: res.context }
+        : c);
     } catch (e) {
-      push({ id: uid(), role: 'assistant', retryText: message, blocks: [{ kind: 'text', text: (e as Error).message }] });
+      const error: ChatMessage = { id: uid(), role: 'assistant', retryText: message, blocks: [{ kind: 'text', text: (e as Error).message }] };
+      setChat((c) => sameSession() ? { ...c, messages: [...c.messages, error] } : c);
     } finally { busyRef.current = false; setBusy(false); }
   }
-  async function confirm(msgId: string, idx: number, threadId: string, approved: boolean, pin?: string) {
+  async function checkTransfer({ msgId, idx, action }: ConfirmationTarget, sameSession: () => boolean) {
+    const result = await lookupAgentTransfer(action.confirmationId).catch(() => undefined);
+    if (!sameSession() || result?.status !== 'SUCCESS') return;
+    setStatus(msgId, idx, 'done');
+    await bank.refresh();
+  }
+  async function recheckTransfer(target: ConfirmationTarget) {
     if (busyRef.current) return;
+    busyRef.current = true; setBusy(true);
+    try { await checkTransfer(target, captureSession()); }
+    finally { busyRef.current = false; setBusy(false); }
+  }
+  async function confirm(target: ConfirmationTarget, approved: boolean, pin?: string) {
+    if (busyRef.current) return;
+    const { msgId, idx, action } = target;
+    const sameSession = captureSession();
     busyRef.current = true; setBusy(true); setStatus(msgId, idx, 'processing');
     try {
-      const res = await chatClient.confirm(threadId, approved, pin);
+      const res = await chatClient.confirm(action.threadId, action.confirmationId, approved, pin);
+      if (!sameSession()) return;
       setStatus(msgId, idx, res.status === 'failed' ? 'failed' : approved ? 'done' : 'cancelled');
-      setChat((c) => ({ messages: [...c.messages, { id: uid(), role: 'assistant', blocks: res.blocks }], context: res.context }));
+      setChat((c) => sameSession()
+        ? { messages: [...c.messages, { id: uid(), role: 'assistant', blocks: res.blocks }], context: res.context }
+        : c);
       setPinFor(null);
       await bank.refresh();
     } catch (e) {
+      if (!sameSession()) return;
+      const uncertain = !(e instanceof BankError) || e.code === 'NETWORK' || e.code === 'NO_PENDING'
+        || e.status === 408 || (e.status ?? 0) >= 500;
+      if (approved && action.actionType === 'TRANSFER' && uncertain) {
+        setStatus(msgId, idx, 'unknown');
+        setPinFor(null);
+        await checkTransfer(target, sameSession);
+        return;
+      }
+      if (e instanceof BankError && ['STALE_CONFIRMATION', 'NO_PENDING'].includes(e.code)) {
+        setStatus(msgId, idx, 'failed');
+        setPinFor(null);
+        bank.toast(e.message);
+        return;
+      }
       setStatus(msgId, idx, 'pending');
       if (approved) throw e;
       bank.toast((e as Error).message);
@@ -78,8 +117,9 @@ export function Assistant() {
           ? <div key={m.id} className="rise flex justify-end"><p className="max-w-[80%] rounded-2xl rounded-br-md bg-brand px-4 py-2.5 text-[15px] text-white">{m.text}</p></div>
           : <div key={m.id} ref={m.id === lastId ? latestAnswerRef : undefined} className="rise flex scroll-mt-20 gap-2"><Avatar /><div className="min-w-0 flex-1 space-y-2">
             {m.blocks?.map((b, i) => <div key={i} className={INSIGHT.has(b.kind) ? '-ml-10' : undefined}><BlockView b={b} active={m.id === lastId && !busy} onAsk={(s, label) => void ask(s, true, label)} onInput={() => inputRef.current?.focus()} onGo={(to) => navigate(to)}
-              onConfirm={() => b.kind === 'agentConfirm' && setPinFor({ msgId: m.id, idx: i, threadId: b.threadId })}
-              onCancel={() => { if (b.kind === 'agentConfirm') void confirm(m.id, i, b.threadId, false); }} /></div>)}
+              onConfirm={() => b.kind === 'agentConfirm' && setPinFor({ msgId: m.id, idx: i, action: b })}
+              onCancel={() => { if (b.kind === 'agentConfirm') void confirm({ msgId: m.id, idx: i, action: b }, false); }}
+              onCheckResult={() => { if (b.kind === 'agentConfirm') void recheckTransfer({ msgId: m.id, idx: i, action: b }); }} /></div>)}
             {m.retryText && <Button size="sm" variant="secondary" disabled={busy || pending} onClick={() => { setChat((c) => ({ ...c, messages: c.messages.filter((x) => x.id !== m.id) })); void ask(m.retryText!, false); }}>다시 시도</Button>}
           </div></div>)}
         {busy && <div className="flex gap-2" aria-label="응답 작성 중"><Avatar /><span className="rounded-2xl bg-surface px-4 py-3 text-[14px] text-sub">처리하고 있어요…</span></div>}
@@ -89,7 +129,7 @@ export function Assistant() {
         <input ref={inputRef} value={input} maxLength={500} disabled={pending} onChange={(e) => setInput(e.target.value)} placeholder={pending ? '요청을 확인하거나 취소해 주세요' : '메시지를 입력하세요'} aria-label="메시지 입력" className="h-11 min-w-0 flex-1 rounded-full bg-surface px-4 text-[15px] outline-none focus:ring-2 focus:ring-brand/30" />
         <button type="submit" disabled={!input.trim() || busy || pending} aria-label="전송" className="grid size-11 shrink-0 place-items-center rounded-full bg-brand text-white disabled:bg-line"><SendHorizontal className="size-5" /></button>
       </form>
-      <PinSheet open={!!pinFor} onClose={() => setPinFor(null)} purpose="요청을 실행하려면" onPass={async (pin) => { if (pinFor) await confirm(pinFor.msgId, pinFor.idx, pinFor.threadId, true, pin); }} />
+      <PinSheet open={!!pinFor} onClose={() => setPinFor(null)} purpose="요청을 실행하려면" onPass={async (pin) => { if (pinFor) await confirm(pinFor, true, pin); }} />
     </Page>
   );
 }
@@ -125,8 +165,9 @@ function TextBubble({ text }: { text: string }) {
   );
 }
 
-function BlockView({ b, active, onAsk, onInput, onGo, onConfirm, onCancel }: {
+function BlockView({ b, active, onAsk, onInput, onGo, onConfirm, onCancel, onCheckResult }: {
   b: Block; active: boolean; onAsk: (t: string, label?: string) => void; onInput: () => void; onGo: (to: string) => void; onConfirm: () => void; onCancel: () => void;
+  onCheckResult: () => void;
 }) {
   const { myAccounts } = useBank();
   switch (b.kind) {
@@ -271,7 +312,12 @@ function BlockView({ b, active, onAsk, onInput, onGo, onConfirm, onCancel }: {
         <div className="px-4 py-2">{Object.entries(b.display).map(([key, value]) => <Row key={key} label={key}>{typeof value === 'number' ? won(value) : value}</Row>)}</div>
         {b.status === 'pending' || b.status === 'processing'
           ? <div className="grid grid-cols-2 gap-2 px-4 pb-4"><Button variant="secondary" disabled={b.status === 'processing'} onClick={onCancel}>취소</Button><Button loading={b.status === 'processing'} onClick={onConfirm}>확인하고 실행</Button></div>
-          : <p className="border-t border-line py-3 text-center text-[14px] text-sub">{b.status === 'done' ? '처리됨' : b.status === 'cancelled' ? '취소됨' : '실패'}</p>}
+          : b.status === 'unknown'
+            ? <div className="space-y-2 border-t border-line p-3 text-center">
+                <p className="text-[14px] text-sub">송금 결과를 아직 확인하지 못했어요.</p>
+                <Button size="sm" variant="secondary" onClick={onCheckResult}>송금 결과 확인</Button>
+              </div>
+            : <p className="border-t border-line py-3 text-center text-[14px] text-sub">{b.status === 'done' ? '처리됨' : b.status === 'cancelled' ? '취소됨' : '실패'}</p>}
       </div>;
 
     case 'transferConfirm': {

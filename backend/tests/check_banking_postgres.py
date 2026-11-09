@@ -134,6 +134,23 @@ def main():
             assert db.get(AutoTransfer, schedule_id).status == "ACTIVE"
         print("PostgreSQL schedule checks passed: success/failure once only, atomic rollback after execution.")
 
+        source, target, number = pair(500)
+        request_id = uuid.uuid4()
+        run_at = now_kst() + timedelta(minutes=5)
+        registrations = parallel(lambda db: auto_transfers.register(
+            db, db.get(User, owner), idempotency_key=request_id, from_account_id=source, to_account_num=number,
+            amount=100, pin="493827", cycle="ONCE", run_at=run_at, run_day=None, start_date=None,
+            end_date=None, memo=None))
+        assert all(isinstance(result, dict) and result["id"] == request_id for result in registrations), registrations
+        with Session(isolated) as db:
+            assert db.scalars(select(AutoTransfer.id).where(AutoTransfer.from_account_id == source)).all() == [request_id]
+            assert auto_transfers.process_one(db, request_id, run_at)
+            assert not auto_transfers.process_one(db, request_id, run_at)
+            assert db.get(Account, source).balance == 400
+            assert db.get(Account, target).balance == 100
+            assert db.scalar(select(func.count()).select_from(Transfer).where(Transfer.auto_transfer_id == request_id)) == 1
+        print("PostgreSQL concurrent registration replay passed: one schedule and one debit.")
+
         app = FastAPI()
         for router in (card_api.router, auto_api.router, notification_api.router):
             app.include_router(router)
@@ -152,8 +169,14 @@ def main():
             assert "card_number" not in response.json() and len(response.json()["last4"]) == 4
             assert http.post(f"/cards/{card_id}/payments", json={"amount": 100, "place": "test merchant", "idempotency_key": "api-card-payment"}).status_code == 201
             assert http.post(f"/cards/{card_id}/lost", json={"pin": "493827"}).json()["status"] == "LOST"
-            assert http.post(f"/cards/{card_id}/reissue", json={"pin": "493827"}).status_code == 201
-            request = {"from_account_id": str(source), "to_account_num": number, "amount": 100,
+            replacement = http.post(f"/cards/{card_id}/reissue", json={"pin": "493827"})
+            assert replacement.status_code == 201
+            new_card_path = f"/cards/{replacement.json()['id']}"
+            assert http.patch(new_card_path, json={"pin": "493827", "daily_limit": 100}).status_code == 200
+            blocked = http.post(new_card_path + "/payments", json={"amount": 1, "place": "test merchant",
+                                                                  "idempotency_key": "reissue-limit-check"})
+            assert blocked.json()["code"] == "CARD_LIMIT"
+            request = {"from_account_id": str(source), "to_account_num": number, "amount": 100, "idempotency_key": str(uuid.uuid4()),
                 "pin": "493827", "cycle": "ONCE", "run_at": (now_kst() + timedelta(minutes=5)).isoformat()}
             response = http.post("/auto-transfers", json=request)
             assert response.status_code == 201, response.text

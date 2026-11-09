@@ -216,6 +216,9 @@ def test_statement_csv_and_delivery_status(bank, monkeypatch):
     today = now_kst().date().isoformat()
     body = {"from_date": today, "to_date": today, "email": "owner@example.com"}
     path = f"/accounts/{src.id}/statements"
+    rejected = http.post(path, json=body | {"email": "other@example.com"})
+    assert rejected.status_code == 403 and rejected.json()["code"] == "STATEMENT_RECIPIENT"
+    assert sent == [] and db.scalar(select(func.count()).select_from(StatementRequest)) == 0
     response = http.post(path, json=body)
     assert response.status_code == 202 and response.json()["status"] == "SENT"
     attachment = sent[0][1]["attachment"]

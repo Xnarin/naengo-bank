@@ -262,8 +262,12 @@ def csv_cell(value):
 
 def request_statement(db: Session, user_id: uuid.UUID, account_id: uuid.UUID, from_date: date, to_date: date, email: str) -> dict:
     from app.services.auth import DEMO_DOMAIN
-    if db.get(User, user_id).email.endswith(DEMO_DOMAIN):
+    registered_email = db.get(User, user_id).email
+    if registered_email.endswith(DEMO_DOMAIN):
         raise BankError("AUTH", "체험에서는 거래내역을 이메일로 보낼 수 없어요.", 403)
+    if email.lower() != registered_email.lower():
+        raise BankError("STATEMENT_RECIPIENT", "거래내역은 가입한 이메일로만 보낼 수 있어요.", 403)
+    email = registered_email
     rows = list_transactions(db, user_id, account_id, start=from_date, end=to_date, order="asc")
     request = StatementRequest(account_id=account_id, from_date=from_date, to_date=to_date, email=email)
     db.add(request)

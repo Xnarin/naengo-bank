@@ -15,6 +15,7 @@ router = APIRouter(prefix="/auto-transfers", tags=["auto-transfers"])
 
 
 class AutoIn(BaseModel):
+    idempotency_key: uuid.UUID
     from_account_id: uuid.UUID
     to_account_num: str = Field(pattern=r"^[0-9]{3}-[0-9]{4}-[0-9]{4}$")
     amount: int = Field(gt=0, strict=True)

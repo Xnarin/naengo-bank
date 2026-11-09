@@ -30,20 +30,23 @@ def verify_secret(hashed: str, raw: str) -> bool:
         return False
 
 
-def create_access_token(user_id: uuid.UUID) -> str:
+def create_access_token(user_id: uuid.UUID, auth_version: int = 0) -> str:
     exp = now_kst() + timedelta(minutes=settings.access_token_minutes)
-    return jwt.encode({"sub": str(user_id), "exp": exp}, settings.jwt_secret, algorithm="HS256")
+    return jwt.encode({"sub": str(user_id), "exp": exp, "ver": auth_version}, settings.jwt_secret, algorithm="HS256")
 
 
 def current_user_id(cred: HTTPAuthorizationCredentials | None = Depends(_bearer), db: Session = Depends(get_db)) -> uuid.UUID:
     """모든 보호 API의 진입점. user_id 는 오직 이 토큰에서만 나온다."""
     try:
-        user_id = uuid.UUID(jwt.decode(cred.credentials, settings.jwt_secret, algorithms=["HS256"], options={"require": ["sub", "exp"]})["sub"])
+        claims = jwt.decode(cred.credentials, settings.jwt_secret, algorithms=["HS256"], options={"require": ["sub", "exp"]})
+        user_id = uuid.UUID(claims["sub"])
     except (AttributeError, KeyError, TypeError, ValueError, jwt.PyJWTError):
         raise BankError("AUTH", "로그인이 만료됐어요. 다시 로그인해 주세요.", 401)
     user = db.get(User, user_id)
     if user is None or user.status != "ACTIVE":
         raise BankError("AUTH", "사용할 수 없는 계정이에요. 다시 로그인해 주세요.", 401)
+    if claims.get("ver", 0) != user.auth_version:
+        raise BankError("AUTH", "로그인이 만료됐어요. 다시 로그인해 주세요.", 401)
     return user_id
 
 

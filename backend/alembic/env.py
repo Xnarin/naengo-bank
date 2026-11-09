@@ -20,7 +20,8 @@ if config.config_file_name is not None:
 from app.config import settings  # noqa: E402
 from app.models import Base  # noqa: E402
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# ConfigParser uses percent signs for interpolation.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

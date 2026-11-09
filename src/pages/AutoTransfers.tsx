@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { CircleAlert, CircleCheck, Plus, Repeat } from 'lucide-react';
 import { PinSheet, RecipientPicker, shortName } from '../components/bank';
@@ -89,6 +89,7 @@ export function NewAutoTransfer() {
   const [pin, setPin] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const request = useRef({ fingerprint: '', key: '' });
   const set = (patch: Partial<typeof f>) => setF((p) => ({ ...p, ...patch }));
   const amount = Number(f.amount || 0);
   const from = accounts.find((a) => a.id === f.fromId);
@@ -105,9 +106,14 @@ export function NewAutoTransfer() {
   }
 
   async function save(pinValue: string) {
+    if (!to) return;
+    const input = { fromId: f.fromId, toNumber: to.number, amount, cycle: f.cycle, day: f.day,
+      startDate: f.startDate, endDate: f.noEnd ? undefined : f.endDate, memo: f.memo.trim() || undefined };
+    const fingerprint = JSON.stringify(input);
+    if (request.current.fingerprint !== fingerprint) request.current = { fingerprint, key: crypto.randomUUID() };
     setBusy(true); setError('');
     try {
-      await bank.createAutoTransfer({ fromId: f.fromId, toNumber: to!.number, amount, cycle: f.cycle, day: f.day, startDate: f.startDate, endDate: f.noEnd ? undefined : f.endDate, memo: f.memo.trim() || undefined }, pinValue);
+      await bank.createAutoTransfer(input, pinValue, request.current.key);
       setPin(false);
       bank.toast('자동이체를 등록했어요');
       navigate('/auto-transfers', { replace: true });

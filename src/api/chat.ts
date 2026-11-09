@@ -32,7 +32,7 @@ export type InsightBlock =
 
 export type Block =
   | InsightBlock
-  | { kind: 'agentConfirm'; threadId: string; display: Record<string, string | number>; status: ConfirmStatus }
+  | { kind: 'agentConfirm'; threadId: string; confirmationId: string; actionType?: string | null; display: Record<string, string | number>; status: ConfirmStatus | 'unknown' }
   | { kind: 'text'; text: string }
   | { kind: 'accounts'; items: Pick<Account, 'id' | 'name' | 'number' | 'balance'>[] }
   | { kind: 'transactions'; title: string; items: Pick<Tx, 'id' | 'accountId' | 'date' | 'type' | 'amount' | 'counterparty'>[] }
@@ -73,23 +73,28 @@ export interface BankSnapshot {
 
 export interface ChatRequest { message: string; context: ChatContext; snapshot: BankSnapshot }
 export interface ChatResponse { blocks: Block[]; context: ChatContext; status?: string }
-export interface ChatClient { send(req: ChatRequest): Promise<ChatResponse>; confirm(threadId: string, approved: boolean, pin?: string): Promise<ChatResponse> }
+export interface ChatClient { send(req: ChatRequest): Promise<ChatResponse>; confirm(threadId: string, confirmationId: string, approved: boolean, pin?: string): Promise<ChatResponse> }
 
 interface AgentResponse {
   blocks: Block[]; context: ChatContext; thread_id: string; status: string;
   confirm?: Record<string, string | number>;
+  confirmation_id?: string | null;
+  confirmation_type?: string | null;
 }
 function fromAgent(response: AgentResponse): ChatResponse {
-  return { blocks: [...response.blocks, ...(response.status === 'confirm' && response.confirm
-    ? [{ kind: 'agentConfirm' as const, threadId: response.thread_id, display: response.confirm, status: 'pending' as const }] : [])],
+  return { blocks: [...response.blocks, ...(response.status === 'confirm' && response.confirm && response.confirmation_id
+    ? [{ kind: 'agentConfirm' as const, threadId: response.thread_id, confirmationId: response.confirmation_id,
+        actionType: response.confirmation_type, display: response.confirm, status: 'pending' as const }] : [])],
     context: { ...response.context, threadId: response.thread_id }, status: response.status };
 }
 export const chatClient: ChatClient = {
   async send({ message, context }) {
     return fromAgent(await api<AgentResponse>('/agent/chat', { message, context, thread_id: context.threadId }));
   },
-  async confirm(threadId, approved, pin) {
-    return fromAgent(await api<AgentResponse>('/agent/confirm', { thread_id: threadId, approved, pin }));
+  async confirm(threadId, confirmationId, approved, pin) {
+    return fromAgent(await api<AgentResponse>('/agent/confirm', { thread_id: threadId, confirmation_id: confirmationId, approved, pin }));
   },
 };
+export const lookupAgentTransfer = (confirmationId: string) =>
+  api<{ status: string }>(`/agent/transfers/${encodeURIComponent(confirmationId)}`);
 export const isMockChat = false;

@@ -47,7 +47,9 @@ def match_accounts(db: Session, user_id: uuid.UUID, hint: str | None) -> list[Ac
     if not hint:
         return accs
     h = re.sub(r"\s", "", hint)
-    hit = [a for a in accs if h in re.sub(r"\s", "", account_label(db, a)) or h in a.account_num.replace("-", "")]
+    number_hint = h.replace("-", "")
+    hit = [a for a in accs if h in re.sub(r"\s", "", account_label(db, a))
+           or (number_hint.isdecimal() and number_hint in a.account_num.replace("-", ""))]
     if not hit:  # "입출금통장에서" → "입출금"처럼 조사·통장을 떼고 한 번 더
         core = re.sub(r"(통장|계좌|에서|으로|로)$", "", re.sub(r"(에서|으로|로)$", "", h))
         hit = [a for a in accs if core and core in re.sub(r"\s", "", account_label(db, a))]
@@ -139,20 +141,25 @@ def _period(start: str | None, end: str | None) -> tuple[date | None, date | Non
     return (date.fromisoformat(start) if start else None, date.fromisoformat(end) if end else None)
 
 
-def make_tools(db: Session, user_id: uuid.UUID):
+def make_tools(db: Session, user_id: uuid.UUID, *, account: Account | None = None):
     """읽기 전용 도구. user_id 는 클로저로 고정."""
 
-    def resolve(account: str | None) -> list[Account]:
-        accs = match_accounts(db, user_id, None if not account or account in ("전체", "all") else account)
+    def resolve(hint: str | None) -> list[Account]:
+        accs = match_accounts(db, user_id, None if not hint or hint in ("전체", "all") else hint)
+        if account is not None:
+            accs = [a for a in accs if a.id == account.id]
         if not accs:
-            raise BankError("INVALID_FROM", f"'{account}'에 맞는 계좌가 없어요.")
+            raise BankError("INVALID_FROM", "요청하신 계좌를 찾을 수 없어요.")
         return accs
 
     @tool
     def list_accounts() -> list[dict]:
         """내 계좌 목록과 잔액, 상태(정상/거래중지)를 조회한다."""
+        accounts = my_accounts(db, user_id)
+        if account is not None:
+            accounts = [a for a in accounts if a.id == account.id]
         return [{"계좌": account_label(db, a), "계좌번호": mask_num(a.account_num), "잔액": a.balance,
-                 "상태": {"ACTIVE": "정상", "SUSPENDED": "거래중지"}.get(a.status, a.status)} for a in my_accounts(db, user_id)]
+                 "상태": {"ACTIVE": "정상", "SUSPENDED": "거래중지"}.get(a.status, a.status)} for a in accounts]
 
     @tool
     def get_transactions(account: str = "전체", start: str | None = None, end: str | None = None,

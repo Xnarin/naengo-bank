@@ -92,6 +92,7 @@ def login(db: Session, email: str, secret: str, *, use_pin: bool, ip: str | None
         db.commit()
         raise BankError("USER_LOCKED", "잠긴 계정이에요. 비밀번호 재설정으로 풀어 주세요.", 403)
     ok = verify_secret(user.pin if use_pin else user.password_hash, secret)
+    user_id, auth_version = user.id, user.auth_version
     previous = db.scalar(select(LoginHistory).where(LoginHistory.user_id == user.id, LoginHistory.success.is_(True))
                          .order_by(LoginHistory.id.desc()).limit(1))
     db.add(LoginHistory(user_id=user.id, ip=ip, user_agent=user_agent, success=ok))
@@ -111,7 +112,7 @@ def login(db: Session, email: str, secret: str, *, use_pin: bool, ip: str | None
     else:
         user.login_fail_count = 0
         db.commit()
-    return {"access_token": create_access_token(user.id), "token_type": "bearer"}
+    return {"access_token": create_access_token(user_id, auth_version), "token_type": "bearer"}
 
 
 def reset_password(db: Session, email: str, code: str, new_password: str) -> None:
@@ -120,6 +121,7 @@ def reset_password(db: Session, email: str, code: str, new_password: str) -> Non
         raise BankError("CODE", "본인확인 정보를 확인해 주세요.")
     verified = verification.verify_code(db, email, "RESET_PW", code)
     user.password_hash = hash_secret(new_password)
+    user.auth_version += 1
     user.status = "ACTIVE"
     user.login_fail_count = user.pin_fail_count = 0
     verification.consume(verified)

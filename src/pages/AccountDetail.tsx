@@ -210,7 +210,7 @@ const csvCell = (v: string | number) => {
 function DownloadSheet({ open, onClose, account }: { open: boolean; onClose: () => void; account: Account }) {
   const { db, user, toast, statement } = useBank();
   const [range, setRange] = useState(() => { const t = new Date(), f = new Date(); f.setMonth(f.getMonth() - 3); return { from: ymd(f), to: ymd(t) }; });
-  const [email, setEmail] = useState(user?.email ?? '');
+  const email = user?.email ?? '';
   const [sent, setSent] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -218,7 +218,6 @@ function DownloadSheet({ open, onClose, account }: { open: boolean; onClose: () 
   const list = db.txs
     .filter((t) => validRange && t.accountId === account.id && new Date(t.date) >= new Date(`${range.from}T00:00`) && new Date(t.date) <= new Date(`${range.to}T23:59:59.999`))
     .sort((a, b) => a.date.localeCompare(b.date));
-  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   async function send() {
     setBusy(true); setError('');
@@ -251,10 +250,10 @@ function DownloadSheet({ open, onClose, account }: { open: boolean; onClose: () 
       <Button full size="lg" variant="secondary" className="mt-4" disabled={!list.length} onClick={download}><Download className="size-4" />CSV 파일로 바로 받기</Button>
 
       <div className="mt-6 border-t border-line pt-5">
-        <Field label="이메일로 받기" type="email" value={email} onChange={(e) => { setEmail(e.target.value); setSent(''); setError(''); }} error={email && !emailOk ? '올바른 이메일 형식이 아니에요.' : undefined}
+        <Field label="가입한 이메일로 받기" type="email" value={email} readOnly
           hint={sent ? <span className="text-success">{sent}로 거래내역을 발송했어요.</span> : undefined} />
         {error && <p role="alert" className="mt-2 text-[13px] text-danger">{error}</p>}
-        <Button full size="lg" className="mt-3" loading={busy} disabled={!emailOk || !validRange || !list.length || !!sent} onClick={() => void send()}>이메일로 신청</Button>
+        <Button full size="lg" className="mt-3" loading={busy} disabled={!email || !validRange || !list.length || !!sent} onClick={() => void send()}>이메일로 신청</Button>
       </div>
     </Sheet>
   );

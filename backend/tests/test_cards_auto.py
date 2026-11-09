@@ -63,7 +63,8 @@ def issue(http, account, **changes):
 
 def schedule_body(source, target, **changes):
     return {"from_account_id": str(source.id), "to_account_num": target.account_num, "amount": 10_000,
-        "pin": PIN, "cycle": "ONCE", "run_at": (now_kst() + timedelta(minutes=5)).isoformat()} | changes
+        "pin": PIN, "cycle": "ONCE", "run_at": (now_kst() + timedelta(minutes=5)).isoformat(),
+        "idempotency_key": str(uuid.uuid4())} | changes
 
 
 def register(http, source, target, **changes):
@@ -226,6 +227,63 @@ def test_once_execution_is_atomic_and_idempotent(bank):
     http.headers["Authorization"] = "Bearer " + create_access_token(other.id)
     assert http.get("/auto-transfers").json() == []
     assert http.delete("/auto-transfers/" + str(schedule_id)).status_code == 404
+
+
+def test_registration_replay_does_not_schedule_a_second_debit(bank, monkeypatch):
+    http, db, _, source, target, _ = bank
+    body = schedule_body(source, target)
+    first = http.post("/auto-transfers", json=body)
+    assert first.status_code == 201
+    retry = http.post("/auto-transfers", json=body)
+    assert retry.status_code == 201 and retry.json()["id"] == first.json()["id"]
+    assert http.post("/auto-transfers", json=body | {"amount": 20_000}).status_code == 409
+    invalid_pin = http.post("/auto-transfers", json=body | {"pin": "000000"})
+    assert invalid_pin.status_code == 401 and invalid_pin.json()["code"] == "PIN"
+    at = datetime.fromisoformat(first.json()["next_run_at"]) + timedelta(seconds=1)
+    rows = db.scalars(select(AutoTransfer)).all()
+    assert len(rows) == 1
+    assert auto_transfers.process_one(db, rows[0].id, at)
+    monkeypatch.setattr(auto_transfers, "now_kst", lambda: at)
+    assert http.post("/auto-transfers", json=body).json()["status"] == "ENDED"
+    assert db.get(Account, source.id).balance == 1_990_000
+    assert db.scalar(select(func.count()).select_from(Transfer)) == 1
+    assert db.scalar(select(func.count()).select_from(AccountTransaction)) == 2
+
+
+def test_equal_schedules_with_distinct_request_ids_remain_separate(bank):
+    http, _, _, source, target, _ = bank
+    body = schedule_body(source, target)
+    first = http.post("/auto-transfers", json=body)
+    second = http.post("/auto-transfers", json=body | {"idempotency_key": str(uuid.uuid4())})
+    assert first.status_code == second.status_code == 201
+    assert first.json()["id"] != second.json()["id"]
+
+
+def test_reissued_card_keeps_todays_spending_across_replacements(bank, monkeypatch):
+    http, db, _, source, *_ = bank
+    card = issue(http, source, daily_limit=10_000)
+    today = now_kst().replace(hour=12, minute=0, second=0, microsecond=0)
+    monkeypatch.setattr(cards, "now_kst", lambda: today)
+
+    def pay(card, amount, key):
+        return http.post(f"/cards/{card['id']}/payments",
+                         json={"amount": amount, "place": "가맹점", "idempotency_key": key})
+
+    def replace(card):
+        path = f"/cards/{card['id']}"
+        assert http.post(path + "/lost", json={"pin": PIN}).status_code == 200
+        response = http.post(path + "/reissue", json={"pin": PIN})
+        assert response.status_code == 201
+        return response.json()
+
+    assert pay(card, 4_000, "first-charge").status_code == 201
+    card = replace(card)
+    assert pay(card, 6_000, "second-charge").status_code == 201
+    card = replace(card)
+    assert pay(card, 1, "over-the-limit").json()["code"] == "CARD_LIMIT"
+    assert db.get(Account, source.id).balance == 1_990_000
+    monkeypatch.setattr(cards, "now_kst", lambda: today + timedelta(days=1))
+    assert pay(card, 10_000, "next-day-charge").status_code == 201
 
 
 @pytest.mark.parametrize("failure", ["balance", "limit", "suspended", "closed_recipient"])

@@ -42,6 +42,7 @@ export function Transfer() {
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
   const [result, setResult] = useState<TransferResult | null>(null);
   const [fail, setFail] = useState<BankError | null>(null);
+  const request = useRef({ fingerprint: '', key: '' });
 
   const from = bank.myAccounts.find((a) => a.id === fromId);
   const amount = Number(amountStr || 0);
@@ -70,7 +71,6 @@ export function Transfer() {
     }
   }
 
-  const request = useRef({ fingerprint: '', key: '' });
   async function send(pin: string) {
     if (!from || !recipient) return;
     const fingerprint = JSON.stringify({ fromId: from.id, toNumber: recipient.number, amount, when, runAt });
@@ -78,7 +78,7 @@ export function Transfer() {
     setSending(true);
     try {
       if (when === 'later') {
-        const r = await bank.scheduleTransfer({ fromId: from.id, toNumber: recipient.number, amount, runAt: new Date(runAt).toISOString() }, pin);
+        const r = await bank.scheduleTransfer({ fromId: from.id, toNumber: recipient.number, amount, runAt: new Date(runAt).toISOString() }, pin, request.current.key);
         setScheduledAt(r.runAt);
       } else {
         setResult(await bank.transfer({ fromId: from.id, toNumber: recipient.number, amount }, pin, request.current.key));

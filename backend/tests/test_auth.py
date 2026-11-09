@@ -141,6 +141,11 @@ def test_login_lock_and_password_reset(client, use_pin):
     http, db = client
     assert verified_signup(http).status_code == 201
     token = login(http).json()["access_token"]
+    claims = jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+    del claims["ver"]
+    legacy = jwt.encode(claims, settings.jwt_secret, algorithm="HS256")
+    legacy_headers = {"Authorization": f"Bearer {legacy}"}
+    assert http.get("/accounts", headers=legacy_headers).status_code == 200
     path = "/auth/login/pin" if use_pin else "/auth/login"
     body = {"email": EMAIL, "pin": "000000"} if use_pin else {"email": EMAIL, "password": "wrong"}
     for i in range(5):
@@ -151,9 +156,13 @@ def test_login_lock_and_password_reset(client, use_pin):
     code = request_code(http, "RESET_PW")
     reset = {"email": EMAIL, "code": code, "new_password": "NewPassword123!"}
     assert http.post("/auth/password/reset", json=reset).status_code == 204
+    assert http.get("/accounts", headers=headers).status_code == 401
+    assert http.get("/accounts", headers=legacy_headers).status_code == 401
     assert http.post("/auth/password/reset", json=reset).status_code == 400
     assert login(http).status_code == 401
-    assert login(http, password=reset["new_password"]).status_code == 200
+    fresh = login(http, password=reset["new_password"])
+    assert fresh.status_code == 200
+    assert http.get("/accounts", headers={"Authorization": f"Bearer {fresh.json()['access_token']}"}).status_code == 200
     assert http.post("/auth/login/pin", json={"email": EMAIL, "pin": PIN}).status_code == 200
     assert db.scalar(select(User)).login_fail_count == 0
 

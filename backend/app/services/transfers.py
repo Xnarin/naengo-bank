@@ -160,9 +160,13 @@ def transfer_out(db: Session, item: Transfer, user_id: uuid.UUID) -> dict:
             "new_balance": outgoing.new_balance if outgoing else None}
 
 
+def find_owned_transfer(db: Session, user_id: uuid.UUID, storage_key: str) -> Transfer | None:
+    return db.scalar(select(Transfer).join(Account, Transfer.from_account_id == Account.id)
+        .where(Transfer.idempotency_key == storage_key, Account.user_id == user_id))
+
+
 def get_by_key(db: Session, user_id: uuid.UUID, key: str) -> dict:
-    item = db.scalar(select(Transfer).join(Account, Transfer.from_account_id == Account.id)
-        .where(Transfer.idempotency_key == f"user:{user_id}:{key}", Account.user_id == user_id))
+    item = find_owned_transfer(db, user_id, f"user:{user_id}:{key}")
     if item is None:
         raise BankError("INVALID_ACCOUNT", "이체 결과를 찾을 수 없어요.", 404)
     return transfer_out(db, item, user_id)

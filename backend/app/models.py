@@ -57,6 +57,7 @@ class User(Base):
     pin: Mapped[str] = mapped_column(String(255))  # PIN 6자리 해시
     login_fail_count: Mapped[int] = mapped_column(default=0)
     pin_fail_count: Mapped[int] = mapped_column(default=0)
+    auth_version: Mapped[int] = mapped_column(default=0, server_default="0")
     status: Mapped[str] = mapped_column(String(20), default="ACTIVE")  # ACTIVE / LOCKED / WITHDRAWN
     created_at: Mapped[datetime] = created()
     withdrawn_at: Mapped[datetime | None] = mapped_column(Ts)
@@ -203,6 +204,7 @@ class AutoTransfer(Base):
     __tablename__ = "auto_transfers"
     __table_args__ = (Index("idx_auto_transfers_next_run", "next_run_at"),)
     id: Mapped[uuid.UUID] = uuid_pk()
+    registration_fingerprint: Mapped[str | None] = mapped_column(String(64))
     from_account_id: Mapped[uuid.UUID] = ref("accounts.id")
     to_account_id: Mapped[uuid.UUID] = ref("accounts.id")
     amount: Mapped[int] = mapped_column(BigInteger)

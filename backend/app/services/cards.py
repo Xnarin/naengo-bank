@@ -167,7 +167,12 @@ def pay(db: Session, user_id, card_id, amount: int, place: str, category: str | 
             raise BankError("CARD_UNAVAILABLE", "사용할 수 없는 카드예요.")
         if overseas and not card.overseas_enabled:
             raise BankError("OVERSEAS_BLOCKED", "해외결제가 꺼져 있어요.")
-        spent = db.scalar(select(func.coalesce(func.sum(CardPayment.amount), 0)).where(CardPayment.card_id == card.id,
+        # A replacement shares today's spending with its predecessors.
+        lineage = select(Card.id, Card.reissued_from_id).where(Card.id == card.id).cte(recursive=True)
+        lineage = lineage.union(select(Card.id, Card.reissued_from_id)
+            .join(lineage, Card.id == lineage.c.reissued_from_id).where(Card.account_id == account.id))
+        spent = db.scalar(select(func.coalesce(func.sum(CardPayment.amount), 0)).where(
+            CardPayment.card_id.in_(select(lineage.c.id)),
             CardPayment.complete_at >= now.replace(hour=0, minute=0, second=0, microsecond=0)))
         if spent + amount > card.daily_limit:
             raise BankError("CARD_LIMIT", "오늘 카드 사용한도를 넘어요.")
