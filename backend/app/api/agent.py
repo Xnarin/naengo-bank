@@ -96,7 +96,8 @@ def confirm(body: ConfirmIn, user_id: uuid.UUID = Depends(current_user_id), db: 
         if body.approved:
             if not body.pin:
                 raise BankError("PIN", "비밀번호(PIN)를 입력해 주세요.")
-            account = db.get(Account, uuid.UUID(pending["from_account_id"])) if pending["type"] == "TRANSFER" else None
+            account = (db.get(Account, uuid.UUID(pending["from_account_id"]))
+                       if pending["type"] in ("TRANSFER", "AUTO_TRANSFER") else None)
             verify_pin(db, db.get(User, user_id), body.pin, account)
         return out(resume(body.thread_id, body.approved, db=db, user_id=user_id), {})
 

@@ -58,20 +58,29 @@ def register(db: Session, user: User, *, idempotency_key: uuid.UUID, from_accoun
              cycle: str, run_at: datetime | None, run_day: int | None, start_date: date | None,
              end_date: date | None, memo: str | None) -> dict:
     source = get_owned_account(db, user.id, from_account_id)
+    verify_pin(db, user, pin, source)
+    return register_after_pin(db, user.id, idempotency_key=idempotency_key, from_account_id=from_account_id,
+                              to_account_num=to_account_num, amount=amount, cycle=cycle, run_at=run_at,
+                              run_day=run_day, start_date=start_date, end_date=end_date, memo=memo)
+
+
+def register_after_pin(db: Session, user_id: uuid.UUID, *, idempotency_key: uuid.UUID, from_account_id, to_account_num: str,
+                       amount: int, cycle: str, run_at: datetime | None, run_day: int | None,
+                       start_date: date | None, end_date: date | None, memo: str | None,
+                       expected_next: datetime | None = None) -> dict:
+    source = get_owned_account(db, user_id, from_account_id, lock=True)
     if run_at is not None and run_at.tzinfo is not None:
         run_at = run_at.astimezone(KST)
     fingerprint = hashlib.sha256(json.dumps(
         (to_account_num, amount, cycle, run_at, run_day, start_date, end_date, memo), default=str
     ).encode()).hexdigest()
-    verify_pin(db, user, pin, source)
-    source = get_owned_account(db, user.id, from_account_id, lock=True)
     existing = db.get(AutoTransfer, idempotency_key)
     if existing is not None:
-        return registered_result(db, user.id, existing, source, fingerprint)
+        return registered_result(db, user_id, existing, source, fingerprint)
     assert_allowed(source, "WITHDRAW")
     if type(amount) is not int or amount <= 0:
         raise BankError("INVALID_AMOUNT", "이체 금액을 확인해 주세요.")
-    target = find_recipient(db, to_account_num, user.id)
+    target = find_recipient(db, to_account_num, user_id)
     if target.id == source.id:
         raise BankError("SAME_ACCOUNT", "출금 계좌와 같은 계좌로는 보낼 수 없어요.")
     now = now_kst()
@@ -92,6 +101,8 @@ def register(db: Session, user: User, *, idempotency_key: uuid.UUID, from_accoun
             raise BankError("INVALID_TIME", "이체 기간 안에 실행 가능한 날짜가 없어요.")
     if end_date and end_date < start_date:
         raise BankError("INVALID_TIME", "종료일은 시작일보다 빠를 수 없어요.")
+    if expected_next is not None and next_at != expected_next:
+        raise BankError("INVALID_TIME", "첫 이체 예정일이 바뀌었어요. 자동이체 조건을 다시 확인해 주세요.", 409)
     row = AutoTransfer(id=idempotency_key, registration_fingerprint=fingerprint,
         from_account_id=source.id, to_account_id=target.id, amount=amount, memo=memo,
         cycle=cycle, run_day=run_day, start_date=start_date, end_date=end_date, next_run_at=next_at)
@@ -103,8 +114,8 @@ def register(db: Session, user: User, *, idempotency_key: uuid.UUID, from_accoun
         existing = db.get(AutoTransfer, idempotency_key)
         if existing is None:
             raise
-        return registered_result(db, user.id, existing, source, fingerprint)
-    return auto_out(db, row, user.id)
+        return registered_result(db, user_id, existing, source, fingerprint)
+    return auto_out(db, row, user_id)
 
 
 def list_schedules(db: Session, user_id, status: str | None) -> list[dict]:

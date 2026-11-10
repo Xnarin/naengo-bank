@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Bot, CircleAlert, CircleCheck, RotateCcw, SendHorizontal } from 'lucide-react';
 import { Button, Page, Row } from '../components/ui';
 import { PinSheet } from '../components/bank';
-import { chatClient, lookupAgentTransfer, type Block, type ChatMessage } from '../api/chat';
+import { chatClient, lookupAgentSchedule, lookupAgentTransfer, type Block, type ChatMessage } from '../api/chat';
 import { BankError, captureSession } from '../api/http';
 const SUGGESTIONS = ['내 계좌 잔액 알려줘', '지난달 소비 패턴 분석해줘', '내 소비패턴에 맞는 통장 추천해줘', '이번 달 돈이 부족할까?', '다음달 얼마 정도 쓸까?', '내 구독 중인 거 찾아줘', '송금하고 싶어'];
 import { productById } from '../data/mock';
@@ -57,16 +57,18 @@ export function Assistant() {
       setChat((c) => sameSession() ? { ...c, messages: [...c.messages, error] } : c);
     } finally { busyRef.current = false; setBusy(false); }
   }
-  async function checkTransfer({ msgId, idx, action }: ConfirmationTarget, sameSession: () => boolean) {
-    const result = await lookupAgentTransfer(action.confirmationId).catch(() => undefined);
-    if (!sameSession() || result?.status !== 'SUCCESS') return;
+  async function checkConfirmation({ msgId, idx, action }: ConfirmationTarget, sameSession: () => boolean) {
+    const done = action.actionType === 'AUTO_TRANSFER'
+      ? await lookupAgentSchedule(action.confirmationId).catch(() => false)
+      : (await lookupAgentTransfer(action.confirmationId).catch(() => undefined))?.status === 'SUCCESS';
+    if (!sameSession() || !done) return;
     setStatus(msgId, idx, 'done');
     await bank.refresh();
   }
-  async function recheckTransfer(target: ConfirmationTarget) {
+  async function recheckConfirmation(target: ConfirmationTarget) {
     if (busyRef.current) return;
     busyRef.current = true; setBusy(true);
-    try { await checkTransfer(target, captureSession()); }
+    try { await checkConfirmation(target, captureSession()); }
     finally { busyRef.current = false; setBusy(false); }
   }
   async function confirm(target: ConfirmationTarget, approved: boolean, pin?: string) {
@@ -87,10 +89,10 @@ export function Assistant() {
       if (!sameSession()) return;
       const uncertain = !(e instanceof BankError) || e.code === 'NETWORK' || e.code === 'NO_PENDING'
         || e.status === 408 || (e.status ?? 0) >= 500;
-      if (approved && action.actionType === 'TRANSFER' && uncertain) {
+      if (approved && (action.actionType === 'TRANSFER' || action.actionType === 'AUTO_TRANSFER') && uncertain) {
         setStatus(msgId, idx, 'unknown');
         setPinFor(null);
-        await checkTransfer(target, sameSession);
+        await checkConfirmation(target, sameSession);
         return;
       }
       if (e instanceof BankError && ['STALE_CONFIRMATION', 'NO_PENDING'].includes(e.code)) {
@@ -119,7 +121,7 @@ export function Assistant() {
             {m.blocks?.map((b, i) => <div key={i} className={INSIGHT.has(b.kind) ? '-ml-10' : undefined}><BlockView b={b} active={m.id === lastId && !busy} onAsk={(s, label) => void ask(s, true, label)} onInput={() => inputRef.current?.focus()} onGo={(to) => navigate(to)}
               onConfirm={() => b.kind === 'agentConfirm' && setPinFor({ msgId: m.id, idx: i, action: b })}
               onCancel={() => { if (b.kind === 'agentConfirm') void confirm({ msgId: m.id, idx: i, action: b }, false); }}
-              onCheckResult={() => { if (b.kind === 'agentConfirm') void recheckTransfer({ msgId: m.id, idx: i, action: b }); }} /></div>)}
+              onCheckResult={() => { if (b.kind === 'agentConfirm') void recheckConfirmation({ msgId: m.id, idx: i, action: b }); }} /></div>)}
             {m.retryText && <Button size="sm" variant="secondary" disabled={busy || pending} onClick={() => { setChat((c) => ({ ...c, messages: c.messages.filter((x) => x.id !== m.id) })); void ask(m.retryText!, false); }}>다시 시도</Button>}
           </div></div>)}
         {busy && <div className="flex gap-2" aria-label="응답 작성 중"><Avatar /><span className="rounded-2xl bg-surface px-4 py-3 text-[14px] text-sub">처리하고 있어요…</span></div>}
@@ -311,11 +313,11 @@ function BlockView({ b, active, onAsk, onInput, onGo, onConfirm, onCancel, onChe
         <p className="px-4 pt-3 text-[16px] font-semibold">요청 내용을 확인해 주세요</p>
         <div className="px-4 py-2">{Object.entries(b.display).map(([key, value]) => <Row key={key} label={key}>{typeof value === 'number' ? won(value) : value}</Row>)}</div>
         {b.status === 'pending' || b.status === 'processing'
-          ? <div className="grid grid-cols-2 gap-2 px-4 pb-4"><Button variant="secondary" disabled={b.status === 'processing'} onClick={onCancel}>취소</Button><Button loading={b.status === 'processing'} onClick={onConfirm}>확인하고 실행</Button></div>
+          ? <div className="grid grid-cols-2 gap-2 px-4 pb-4"><Button variant="secondary" disabled={b.status === 'processing'} onClick={onCancel}>취소</Button><Button loading={b.status === 'processing'} onClick={onConfirm}>{b.actionType === 'AUTO_TRANSFER' ? '확인하고 등록' : '확인하고 실행'}</Button></div>
           : b.status === 'unknown'
             ? <div className="space-y-2 border-t border-line p-3 text-center">
-                <p className="text-[14px] text-sub">송금 결과를 아직 확인하지 못했어요.</p>
-                <Button size="sm" variant="secondary" onClick={onCheckResult}>송금 결과 확인</Button>
+                <p className="text-[14px] text-sub">{b.actionType === 'AUTO_TRANSFER' ? '자동이체 등록 여부를 아직 확인하지 못했어요.' : '송금 결과를 아직 확인하지 못했어요.'}</p>
+                <Button size="sm" variant="secondary" onClick={onCheckResult}>{b.actionType === 'AUTO_TRANSFER' ? '등록 결과 확인' : '송금 결과 확인'}</Button>
               </div>
             : <p className="border-t border-line py-3 text-center text-[14px] text-sub">{b.status === 'done' ? '처리됨' : b.status === 'cancelled' ? '취소됨' : '실패'}</p>}
       </div>;

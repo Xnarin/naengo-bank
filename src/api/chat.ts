@@ -97,4 +97,6 @@ export const chatClient: ChatClient = {
 };
 export const lookupAgentTransfer = (confirmationId: string) =>
   api<{ status: string }>(`/agent/transfers/${encodeURIComponent(confirmationId)}`);
+export const lookupAgentSchedule = async (confirmationId: string) =>
+  (await api<{ id: string }[]>('/auto-transfers')).some((schedule) => schedule.id === confirmationId);
 export const isMockChat = false;

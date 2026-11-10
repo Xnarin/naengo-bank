@@ -20,6 +20,7 @@ import re
 import json
 import sys
 import uuid
+from datetime import date, datetime
 from typing import Literal, TypedDict
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
@@ -33,10 +34,12 @@ from app.agent.insight_blocks import insight_block
 from app.agent.rag import llm, rag_graph, source_label
 from app.errors import BankError
 from app.models import now_kst
+from app.services import auto_transfers
 from app.services.transfers import transfer
 from app.services.cards import last4
 
-Intent = Literal["ACCOUNT_QUERY", "PRODUCT_RECOMMENDATION", "TRANSFER", "CARD_ACTION", "FINANCE_QA", "UNSUPPORTED"]
+Intent = Literal["ACCOUNT_QUERY", "SENT_TOTAL", "LIMIT_CHANGE", "PRODUCT_RECOMMENDATION", "TRANSFER", "AUTO_TRANSFER",
+                 "OPEN_ACCOUNT", "ISSUE_CARD", "AUTO_TRANSFER_LIST", "CARD_ACTION", "FINANCE_QA", "UNSUPPORTED"]
 MAX_TOOL_ROUNDS = 4
 HISTORY_TURNS = 6
 ACCOUNT_SEPARATOR = r"(?:[ \t]*-[ \t]*|[ \t]+)"
@@ -44,11 +47,20 @@ ACCOUNT_NUMBER = re.compile(rf"(?<![0-9])(?:[0-9]{{3}}{ACCOUNT_SEPARATOR}[0-9]{{
 CARD_NUMBER = re.compile(r"(?<![0-9])(?:[0-9]{4}(?:[- ]?[0-9]{4}){3}|[0-9]{4})(?![0-9])")
 ACCOUNT_REF_RULE = "메시지의 [계좌번호1] 같은 표시는 계좌번호다. 계좌를 가리키는 필드에는 표시 전체를 그대로 복사한다."
 SELF_RECIPIENT = re.compile(r"(?:나(?:한테|에게)?|(?:내|본인)\s*(?:계좌|통장))(?:에|로|으로)?")
+LAST_TRANSFER_AMOUNT = re.compile(r"(?:저번|지난번|직전|마지막)(?:에)?\s*(?:보낸|송금한|이체한)\s*(?:만큼|금액(?:만큼|으로|과\s*같이))")
+PAIR_PURPOSE_OPTIONS = [
+    {"label": "일상 결제·생활비", "value": "일상 결제용으로 입출금통장과 파킹통장을 비교해줘"},
+    {"label": "잠시 돈 보관", "value": "돈을 잠시 보관하려고 입출금통장과 파킹통장을 비교해줘"},
+]
+WEEKDAYS = "월화수목금토일"
+SCHEDULE_TIME = re.compile(r"(?:(오전|오후)\s*)?(\d{1,2})(?:\s*시(?:\s*(\d{1,2})\s*분|\s*(반))?|:(\d{2}))")
+SCHEDULE_TIME_WORDS = re.compile(r"오전|오후|정오|자정|(?:한|두|세|네|다섯|여섯|일곱|여덟|아홉|열(?:한|두)?)\s*시(?!간)")
 
 
 class Route(BaseModel):
     intent: Intent = Field(description="고객 메시지의 의도")
-    account_hint: str | None = Field(None, description="ACCOUNT_QUERY에서 이번 메시지가 명시한 조회 대상 계좌 하나의 이름, 별칭 또는 번호. 여러 계좌, 전체 조회, 대상 미지정이면 null.")
+    account_hint: str | None = Field(None, description="ACCOUNT_QUERY 또는 LIMIT_CHANGE 대상인 본인 계좌 하나의 이름, 별칭 또는 번호. 대상 미지정이면 null.")
+    sent_to: str | None = Field(None, description="SENT_TOTAL의 송금 상대 이름, 별칭 또는 계좌번호 표시. 한테·에게 같은 조사를 빼고 추출한다. 예: 홍길동이한테 → 홍길동, 길동이한테 → 길동이.")
     purpose: Literal["general", "spending", "savings", "group"] = Field("general", description="통장 사용 목적. 생활비 관리용이라고 직접 말하면 spending, 대기자금·금리비교 savings, 모임 group. 소비패턴에 맞는 추천처럼 목적 미지정은 general. 소비 분석이라는 말만으로 spending을 고르지 않는다.")
 
 
@@ -64,16 +76,31 @@ class CardSlots(BaseModel):
     card_hint: str | None = Field(None, description="카드 끝자리 4숫자 등 카드를 가리키는 말. 없으면 null")
 
 
+class AutoTransferSlots(TransferSlots):
+    cycle: Literal["WEEKLY", "MONTHLY", "ONCE"] | None = Field(None, description="매주 WEEKLY, 매월 MONTHLY, 일회 예약 ONCE. 없으면 null")
+    start_date: str | None = Field(None, description="명시한 시작 날짜 YYYY-MM-DD. 없으면 null")
+    end_date: str | None = Field(None, description="명시한 종료 날짜 YYYY-MM-DD. 없으면 null")
+    no_end: bool = Field(False, description="종료일 없이 계속 이체하겠다고 직접 말하면 true")
+
+
 router_llm = llm.with_structured_output(Route)
 slot_llm = llm.with_structured_output(TransferSlots)
+auto_slot_llm = llm.with_structured_output(AutoTransferSlots)
 card_llm = llm.with_structured_output(CardSlots)
 
 ROUTER_PROMPT = """내금고 은행 앱 AI 어시스턴트에 들어온 고객 메시지의 의도를 하나 고르라.
 - ACCOUNT_QUERY: 잔액, 거래내역, 지출·소비 패턴 분석, 이체한도 사용액, 잔액·지출 예측, 정기결제·구독 탐지 요청. "이번 달 돈이 부족할 것 같은데 왜지? 어떻게 하지?", "다음달 얼마 정도 쓸까?", "구독 중인 거 찾아줘"도 여기에 해당한다.
   타인 계좌나 모르는 별칭의 잔액·거래내역 요청도 ACCOUNT_QUERY다. 계좌 하나를 명시했다면 account_hint에 그 이름이나 번호를 원문 그대로 넣는다. "별칭이 여행적금인 통장"의 힌트는 "여행적금"이다. 거래 상대방, 카드, 상품 종류 일반, 이전 메시지에만 나온 대상은 힌트에 넣지 않는다.
-- TRANSFER: 지금 돈을 보내 달라는 요청 ("엄마한테 5만원 보내줘"), 또는 진행 중인 송금에 대한 대답(받는 분, 금액, 계좌, "취소")
+- SENT_TOTAL: 이번 달 한 사람이나 계좌에 보낸 송금액 합계. 예: "이번달에 홍길동이한테 내가 얼마 보냈지?"는 sent_to="홍길동". 거래목록 자체나 다른 기간은 ACCOUNT_QUERY.
+- LIMIT_CHANGE: 계좌 이체한도 변경 요청 또는 대상 계좌를 고르는 후속 답변. "한도 올려줘"도 여기에 해당한다. 카드 한도나 한도 규정·변경 방법에 관한 질문은 FINANCE_QA다.
+- TRANSFER: 지금 돈을 보내 달라는 요청 ("엄마한테 5만원 보내줘", "저번에 보낸 만큼 길동이에게 보내줘"), 또는 진행 중인 송금에 대한 대답(받는 분, 금액, 계좌, "취소")
+- AUTO_TRANSFER: 자동이체 등록, 반복 송금 ("매월 15일에 엄마한테 5만원 보내줘"), 예약이체, 진행 중인 자동이체 조건에 대한 대답.
+- AUTO_TRANSFER_LIST: 자동이체 내역 보기·관리 또는 등록된 자동이체 해지. 등록 요청은 AUTO_TRANSFER.
+- OPEN_ACCOUNT: 계좌나 통장을 만들어 달라는 요청 ("계좌 만들어줘", "파킹통장 개설해줘").
+- ISSUE_CARD: 체크카드를 만들어 달라는 요청 ("카드 만들어줘", "체크카드 발급해줘"). 정지·분실 신고는 CARD_ACTION.
 - PRODUCT_RECOMMENDATION: 입출금통장 추천·내게 맞는 통장 비교 및 추천 중 목적을 답하는 후속 질문. "입출금통장 추천해줘", "소비패턴에 맞는 통장", "생활비용 통장 추천". purpose는 고객이 명시한 목적만 선택한다. 주식·코인 추천은 UNSUPPORTED, 단순 상품 금리·조건 정보는 FINANCE_QA다.
   "내 소비패턴에 맞는 통장 추천"의 purpose는 general이다. 분석 기준은 사용 목적이 아니다. "생활비 관리용"처럼 용도를 직접 말했을 때만 spending이다.
+  "입출금통장이 좋을지 파킹통장이 좋을지"도 PRODUCT_RECOMMENDATION이다. 목적을 묻고 나서 "일상 결제용"은 spending, "잠시 돈 보관"은 savings로 고른다.
 - CARD_ACTION: 내 카드를 정지해 달라는 요청 ("카드 잃어버렸어 정지해줘")
 - FINANCE_QA: 은행 이용 방법, 상품, 이자, 수수료, 한도 규정, 보안, 금융사기, 예금자보호, 대출 규정 등 정보·규정 질문.
   "~하면 어떻게 되나요?", "~해도 되나요?", "카드 잃어버렸는데 어떻게 해야 하나요?"처럼 방법을 묻는 질문도 여기다.
@@ -107,6 +134,14 @@ NEED_LOGIN = {  # 로그인 없이 들어온 조회·이체·카드 (프론트 M
     "ACCOUNT_QUERY": ("잔액과 거래내역은 홈 화면에서 계좌를 눌러 확인할 수 있어요.", [{"label": "내 계좌 보기", "to": "/"}]),
     "TRANSFER": ("송금은 이체 화면에서 받는 분과 금액을 확인한 뒤 진행해 주세요.", [{"label": "이체하기", "to": "/transfer"}]),
     "CARD_ACTION": ("카드 정지와 해제는 카드 화면에서 할 수 있어요. 분실했다면 고객센터에 바로 분실 신고해 주세요.", [{"label": "내 카드", "to": "/cards"}]),
+    "SENT_TOTAL": ("보낸 금액은 로그인 후 확인할 수 있어요.", [{"label": "로그인", "to": "/login"}]),
+    "LIMIT_CHANGE": ("이체한도는 로그인한 뒤 계좌 관리에서 변경할 수 있어요.", [{"label": "로그인", "to": "/login"}]),
+    "AUTO_TRANSFER": ("자동이체는 로그인 후 등록할 수 있어요.", [{"label": "로그인", "to": "/login"}]),
+}
+SCREEN_GUIDES = {
+    "OPEN_ACCOUNT": ("상품을 고른 뒤 계좌 개설을 진행할 수 있어요.", "계좌 상품 보기", "/products"),
+    "ISSUE_CARD": ("카드 발급 화면에서 연결할 계좌를 고를 수 있어요.", "카드 발급하기", "/cards/new"),
+    "AUTO_TRANSFER_LIST": ("등록한 자동이체는 자동이체 관리 화면에서 확인하거나 해지할 수 있어요.", "자동이체 관리", "/auto-transfers"),
 }
 
 
@@ -125,6 +160,10 @@ class AgentState(TypedDict, total=False):
     history: list[tuple[str, str]]
     draft: dict | None  # 진행 중인 송금 슬롯 {recipient, amount, from_hint, to: {...}, from_id}
     pending_action: dict | None  # confirm 화면에 보여줄 값 = 실행할 값
+    sent_to: str | None
+    awaiting_sent_to: bool
+    pair_comparison: bool
+    awaiting_limit_account: bool
 
 
 def ctx(config) -> tuple:
@@ -163,10 +202,19 @@ def history_text(state: AgentState) -> str:
 def router(state: AgentState, config):
     d = state.get("draft")
     _, user_id = ctx(config)
+    if user_id is not None and state.get("awaiting_sent_to") and ACCOUNT_NUMBER.fullmatch(state["message"].strip()):
+        return {"intent": "SENT_TOTAL", "sent_to": account_digits(state["message"])}
     if user_id is not None and d is not None and not d.get("to") and ACCOUNT_NUMBER.fullmatch(state["message"].strip()):
-        return {"intent": "TRANSFER"}
-    pending = (f"진행 중인 송금이 있다 (받는 분={d.get('recipient') or '?'}, 금액={d.get('amount') or '?'}). "
-               "메시지가 그 대답이면 TRANSFER다.") if d else ""
+        return {"intent": "AUTO_TRANSFER" if d.get("auto") else "TRANSFER"}
+    pending_intent = "AUTO_TRANSFER" if d and d.get("auto") else "TRANSFER"
+    pending = (f"{pending_intent} 등록 중 (받는 분={d.get('recipient') or '?'}, 금액={d.get('amount') or '?'}). "
+               f"메시지가 그 대답이면 {pending_intent}다.") if d else ""
+    if state.get("pair_comparison"):
+        pending += "\n입출금통장과 파킹통장 중 선택할 사용 목적을 묻고 있다. 목적을 답하면 PRODUCT_RECOMMENDATION이다."
+    if state.get("awaiting_limit_account"):
+        pending += "\n어느 계좌의 이체한도를 바꿀지 묻고 있다. 계좌를 답하면 LIMIT_CHANGE다."
+    if state.get("awaiting_sent_to"):
+        pending += "\n이번 달 송금 합계를 낼 받는 계좌를 묻고 있다. 상대 이름이나 계좌를 답하면 SENT_TOTAL이다."
     message, refs = account_references(state["message"])
     route = router_llm.invoke(ACCOUNT_REF_RULE + "\n" + ROUTER_PROMPT.format(
         message=message, pending=redact_accounts(pending), history=history_text(state)))
@@ -174,11 +222,20 @@ def router(state: AgentState, config):
     if user_id is None and intent in NEED_LOGIN:
         return {"intent": intent, "status": "guided"}
     hint = (route.account_hint or "").strip()
+    if intent == "LIMIT_CHANGE" and len(refs) == 1 and not hint:
+        hint = next(iter(refs))
+    sent_to = (route.sent_to or "").strip()
+    if intent == "SENT_TOTAL" and not sent_to and len(refs) == 1:
+        sent_to = next(iter(refs))
+    pair = bool(re.search(r"입출금\s*통장", message) and re.search(r"파킹\s*통장", message))
     if intent == "ACCOUNT_QUERY" and refs and not hint:
         if len(refs) != 1:
             return {"intent": intent, "status": "ask", "answer": "조회할 계좌를 하나씩 알려 주세요."}
         hint = next(iter(refs))
-    return {"intent": intent, "recommendation_purpose": route.purpose, "account_hint": refs.get(hint, hint)}
+    return {"intent": intent, "recommendation_purpose": route.purpose, "account_hint": refs.get(hint, hint),
+            "sent_to": refs.get(sent_to, sent_to) if intent == "SENT_TOTAL" else None,
+            "pair_comparison": intent == "PRODUCT_RECOMMENDATION" and (pair or state.get("pair_comparison", False)),
+            "awaiting_limit_account": False}
 
 
 def after_router(state: AgentState):
@@ -186,13 +243,22 @@ def after_router(state: AgentState):
         return "need_login"
     if state.get("status") == "ask":
         return END
+    if state["intent"] in SCREEN_GUIDES:
+        return "screen_guide"
     return {"ACCOUNT_QUERY": "account_query", "TRANSFER": "transfer_slots", "CARD_ACTION": "card_action",
+            "AUTO_TRANSFER": "transfer_slots",
+            "SENT_TOTAL": "sent_total", "LIMIT_CHANGE": "limit_change",
             "PRODUCT_RECOMMENDATION": "product_recommendation", "FINANCE_QA": "finance_qa"}.get(state["intent"], "guide")
 
 
 def need_login(state: AgentState):
     text, links = NEED_LOGIN[state["intent"]]
     return {"answer": text, "blocks": [{"kind": "links", "links": links}]}
+
+
+def screen_guide(state: AgentState):
+    text, label, path = SCREEN_GUIDES[state["intent"]]
+    return {"answer": text, "status": "guided", "blocks": [{"kind": "links", "links": [{"label": label, "to": path}]}]}
 
 
 def guide(state: AgentState):
@@ -267,10 +333,59 @@ def account_query(state: AgentState, config):
     return result
 
 
+def sent_total(state: AgentState, config):
+    db, user_id = ctx(config)
+    who = state.get("sent_to") or ""
+    if not who:
+        return {"answer": "이번 달 송금액을 확인할 상대 이름이나 받는 계좌번호를 알려 주세요.",
+                "status": "ask", "awaiting_sent_to": True}
+    if ACCOUNT_NUMBER.fullmatch(who):
+        digits = account_digits(who)
+        number = f"{digits[:3]}-{digits[3:7]}-{digits[7:]}"
+    else:
+        choices = T.sent_recipient_choices(db, user_id, who)
+        if not choices:
+            return {"answer": "보낸 내역에서 상대를 찾지 못했어요. 이름이나 받는 계좌번호를 확인해 주세요.",
+                    "status": "ask", "awaiting_sent_to": True}
+        if len(choices) > 1:
+            options = [{"label": f"{label} · {T.mask_num(number)}", "value": f"이번 달에 {number} 계좌로 얼마 보냈지?"}
+                       for number, label in choices.items()]
+            return {"answer": "받는 계좌가 여러 개예요. 조회할 계좌를 골라 주세요.", "status": "ask",
+                    "awaiting_sent_to": True, "blocks": [{"kind": "choices", "options": options}]}
+        number = next(iter(choices))
+    count, total = T.sent_transfer_amount(db, user_id, number, monthly=True)
+    label = f"끝자리 {number[-4:]} 계좌"
+    answer = (f"이번 달에 {label}로 {count}건, 총 {total:,}원을 보냈어요." if count else
+              f"이번 달에 {label}로 보낸 이체 내역이 없어요.")
+    return {"answer": answer, "status": "answered", "awaiting_sent_to": False}
+
+
+def limit_change(state: AgentState, config):
+    db, user_id = ctx(config)
+    hint = state.get("account_hint") or ""
+    accounts = [a for a in T.match_accounts(db, user_id, hint) if a.status == "ACTIVE"]
+    if hint and not accounts:
+        return {"answer": "해당 계좌를 찾지 못했어요. 이체한도를 바꿀 본인 계좌 이름을 알려 주세요.",
+                "status": "ask", "awaiting_limit_account": True}
+    if not accounts:
+        return {"answer": "이체한도를 바꿀 수 있는 계좌가 없어요.", "status": "guided"}
+    links = [{"label": f"{T.account_label(db, a)} · 끝자리 {a.account_num[-4:]}", "to": f"/accounts/{a.id}/manage"}
+             for a in accounts]
+    answer = ("어느 계좌의 이체한도를 바꿀까요? 계좌를 골라 관리 화면의 이체한도에서 바꿀 수 있어요."
+              if len(links) > 1 else "계좌 관리 화면의 이체한도에서 금액을 바꾸고 PIN으로 확인해 주세요.")
+    return {"answer": answer, "status": "ask" if len(links) > 1 else "guided",
+            "awaiting_limit_account": len(links) > 1, "blocks": [{"kind": "links", "links": links}]}
+
+
 def product_recommendation(state: AgentState, config):
     db, user_id = ctx(config)
+    pair = state.get("pair_comparison", False)
+    purpose = state.get("recommendation_purpose", "general")
+    if pair and purpose not in ("spending", "savings"):
+        return {"answer": "생활비처럼 자주 쓸 돈인가요, 아니면 잠시 보관할 돈인가요?",
+                "status": "ask", "blocks": [{"kind": "choices", "options": PAIR_PURPOSE_OPTIONS}]}
     tool = next(tool for tool in T.make_tools(db, user_id) if tool.name == "recommend_accounts")
-    result = tool.invoke({"purpose": state.get("recommendation_purpose", "general")})
+    result = tool.invoke({"purpose": purpose, **({"pair_only": True} if pair else {})})
     mode = {
         "소비패턴기준비교": "이 결과는 충분한 본인 소비 기록을 계산한 패턴 기반 비교다. 목적만으로 안내했다거나 소비패턴을 사용하지 않았다고 말하지 않는다.",
         "목적기준안내": "기록이 짧아 소비패턴 맞춤을 확정하지 않고 고객이 명시한 사용 목적에 따라 조건부로 비교한 결과다.",
@@ -297,13 +412,23 @@ def product_recommendation(state: AgentState, config):
 
 def transfer_slots(state: AgentState, config):
     db, user_id = ctx(config)
+    scheduled = state.get("intent") == "AUTO_TRANSFER"
     d = dict(state.get("draft") or {})
+    if bool(d.get("auto")) != scheduled:
+        d = {}
+    if scheduled:
+        d["auto"] = True
     message = state["message"].strip()
+    reuse_amount = not scheduled and bool(LAST_TRANSFER_AMOUNT.search(message))
     if not d.get("to") and ACCOUNT_NUMBER.fullmatch(message):
         s = TransferSlots(recipient=account_digits(message))
     else:
         message, refs = account_references(message)
-        s = slot_llm.invoke(f"은행 송금 요청에서 정보를 뽑아라. 메시지에 없는 값은 null.\n{ACCOUNT_REF_RULE}\n"
+        extractor = auto_slot_llm if scheduled else slot_llm
+        guide = (f"자동이체 등록이다. 오늘은 한국 시간 {now_kst().date()}이다. 금액·주기·실행일·시작일·종료일은 추측하지 않는다. "
+                 f"이전에 고른 주기는 {d.get('cycle') or '미정'}이다. 새 요일이나 날짜만 말하면 그 주기에 맞춘다.\n"
+                 if scheduled else "")
+        s = extractor.invoke(guide + f"은행 송금 요청에서 정보를 뽑아라. 메시지에 없는 값은 null.\n{ACCOUNT_REF_RULE}\n"
                             f"이미 받은 정보: 받는 분={redact_accounts(d.get('recipient') or '')}, 금액={d.get('amount')}\n메시지: {message}")
         recipient, source = (s.recipient or "").strip(), (s.from_hint or "").strip()
         if refs and not s.cancel and recipient not in refs and source not in refs:
@@ -311,7 +436,43 @@ def transfer_slots(state: AgentState, config):
         s.recipient = refs.get(recipient, s.recipient)
         s.from_hint = refs.get(source, s.from_hint)
     if s.cancel:
-        return {"draft": None, "answer": "송금을 취소했어요.", "status": "cancelled"}
+        return {"draft": None, "answer": "자동이체 등록을 취소했어요." if scheduled else "송금을 취소했어요.", "status": "cancelled"}
+    if isinstance(s, AutoTransferSlots):
+        if s.cycle == "ONCE":
+            return {"draft": None, "status": "guided", "answer": "한 번만 보내는 예약이체는 이체 화면에서 예약으로 등록할 수 있어요.",
+                    "blocks": [{"kind": "links", "links": [{"label": "예약이체 화면", "to": "/transfer"}]}]}
+        if s.cycle and s.cycle != d.get("cycle"):
+            d["cycle"] = s.cycle
+            d.pop("run_day", None)
+        if d.get("cycle") == "WEEKLY":
+            days = {WEEKDAYS.index(day) for day in re.findall(r"([월화수목금토일])요일", message)}
+        else:
+            # ISO 날짜와 시작·종료일의 '12월 1일'은 반복 실행일과 구분한다.
+            day_text = re.sub(r"(?<!\d)\d{1,2}\s*월\s*\d{1,2}\s*일", "", message)
+            days = {int(day) for day in re.findall(r"(?<![\d-])(\d{1,2})\s*일(?![\d-]|\s*(?:부터|까지))", day_text)}
+        if len(days) == 1:
+            d["run_day"] = next(iter(days))
+        elif len(days) > 1:
+            d.pop("run_day", None)
+        for key in ("start_date", "end_date"):
+            if getattr(s, key) is not None:
+                d[key] = getattr(s, key)
+        if s.no_end:
+            d.pop("end_date", None)
+        times = list(SCHEDULE_TIME.finditer(message))
+        if times:
+            d["unsupported_time"] = (
+                any(t[1] == "오후" or int(t[2]) != 9 or t[4] or int(t[3] or t[5] or 0) for t in times)
+                or bool(SCHEDULE_TIME_WORDS.search(SCHEDULE_TIME.sub("", message)))
+            )
+        elif SCHEDULE_TIME_WORDS.search(message):
+            d["unsupported_time"] = True
+    if reuse_amount:
+        d.pop("amount", None)
+        d["reuse_amount"] = True
+        s.amount = None
+    elif s.amount is not None or (s.recipient and d.get("to")):
+        d.pop("reuse_amount", None)
     for k in ("recipient", "amount", "from_hint"):
         if getattr(s, k) is not None:
             d[k] = getattr(s, k)
@@ -372,20 +533,55 @@ def transfer_slots(state: AgentState, config):
                            blocks=T.recipient_choices(db, user_id))
             return ask("어느 계좌에서 보낼까요?", [f"{T.account_label(db, a)}에서" for a in mine])
         d["from_id"] = str(accs[0].id)
-    if not d.get("amount") or d["amount"] <= 0:
+    previous_amount = T.sent_transfer_amount(db, user_id, d["to"]["account_num"]) if d.get("reuse_amount") else None
+    amount = previous_amount if d.get("reuse_amount") else d.get("amount")
+    if not amount or amount <= 0:
         target = d["to"]["alias"] or f"{T.mask_name(d['to']['holder_name'])}님"
-        return ask(f"{target}에게 얼마를 보낼까요?", ["1만원", "3만원", "5만원", "10만원"])
+        prefix = "이 계좌로 보낸 내역이 없어요. " if d.pop("reuse_amount", False) else ""
+        return ask(f"{prefix}{target}에게 얼마를 보낼까요?", ["1만원", "3만원", "5만원", "10만원"])
+
+    terms = None
+    if scheduled:
+        cycle, day = d.get("cycle"), d.get("run_day")
+        if d.get("unsupported_time"):
+            return ask("자동이체는 한국 시간 오전 9시에 실행돼요. 오전 9시로 등록할까요?", ["오전 9시로 등록해줘"])
+        if cycle not in ("WEEKLY", "MONTHLY"):
+            return ask("매주 보낼까요, 매월 보낼까요?", ["매주", "매월"])
+        if type(day) is not int or not (0 <= day <= 6 if cycle == "WEEKLY" else 1 <= day <= 31):
+            return ask("매주 무슨 요일에 보낼까요?" if cycle == "WEEKLY" else "매월 며칠에 보낼까요?")
+        now = now_kst()
+        try:
+            start = date.fromisoformat(d["start_date"]) if d.get("start_date") else now.date()
+            end = date.fromisoformat(d["end_date"]) if d.get("end_date") else None
+        except ValueError:
+            d.pop("start_date", None)
+            d.pop("end_date", None)
+            return ask("시작일과 종료일을 YYYY-MM-DD 형식으로 다시 알려 주세요.")
+        next_at = auto_transfers.next_run(cycle, day, start, end, now)
+        if next_at is None:
+            d.pop("end_date", None)
+            return ask("이 기간에는 실행할 수 있는 날짜가 없어요. 종료일을 다시 알려 주세요.")
+        terms = {"cycle": cycle, "run_day": day, "start_date": start.isoformat(),
+                 "end_date": end.isoformat() if end else None, "next_at": next_at.isoformat(),
+                 "to_account_num": d["to"]["account_num"]}
 
     src = db.get(T.Account, uuid.UUID(d["from_id"]))
     confirmation_id = str(uuid.uuid4())
     action = {
         "type": "TRANSFER", "idempotency_key": f"agent:{confirmation_id}",
         "confirmation_id": confirmation_id,
-        "from_account_id": d["from_id"], "to_account_id": d["to"]["account_id"], "amount": d["amount"],
+        "from_account_id": d["from_id"], "to_account_id": d["to"]["account_id"], "amount": amount,
         "display": {"받는 분": T.mask_name(d["to"]["holder_name"]) + (f" ({d['to']['alias']})" if d["to"].get("alias") else ""),
-                    "받는 계좌": T.mask_num(d["to"]["account_num"]), "금액": d["amount"],
+                    "받는 계좌": T.mask_num(d["to"]["account_num"]), "금액": amount,
                     "출금 계좌": f"{T.account_label(db, src)} {T.mask_num(src.account_num)}"},
     }
+    if previous_amount is not None:
+        action["display"]["금액 기준"] = "같은 계좌에 마지막으로 보낸 금액"
+    if terms:
+        action.update(type="AUTO_TRANSFER", schedule=terms)
+        action["display"].update({"주기": f"매주 {WEEKDAYS[day]}요일" if cycle == "WEEKLY" else f"매월 {day}일",
+                                  "첫 이체 예정": f"{next_at:%Y-%m-%d %H:%M} (한국 시간)",
+                                  "시작일": terms["start_date"], "종료일": terms["end_date"] or "종료일 없음"})
     return {"draft": None, "pending_action": action}
 
 
@@ -434,6 +630,16 @@ def execute(state: AgentState, config):
     db, user_id = ctx(config)
     a = state["pending_action"]
     try:
+        if a["type"] == "AUTO_TRANSFER":
+            terms = a["schedule"]
+            auto_transfers.register_after_pin(db, user_id, idempotency_key=uuid.UUID(a["confirmation_id"]),
+                from_account_id=uuid.UUID(a["from_account_id"]), to_account_num=terms["to_account_num"],
+                amount=a["amount"], cycle=terms["cycle"], run_day=terms["run_day"], run_at=None,
+                start_date=date.fromisoformat(terms["start_date"]),
+                end_date=date.fromisoformat(terms["end_date"]) if terms["end_date"] else None,
+                memo=None, expected_next=datetime.fromisoformat(terms["next_at"]))
+            return {"pending_action": None, "answer": "자동이체를 등록했어요. 첫 이체는 확인한 예정일에 진행돼요.", "status": "done",
+                    "blocks": [{"kind": "links", "links": [{"label": "자동이체 관리", "to": "/auto-transfers"}]}]}
         if a["type"] == "TRANSFER":
             src = T.match_accounts(db, user_id, None)
             if uuid.UUID(a["from_account_id"]) not in {x.id for x in src}:  # 소유자 재확인 (서비스는 소유자를 모른다)
@@ -455,17 +661,19 @@ def cancel(_: AgentState):
 
 b = StateGraph(AgentState)
 for name, fn in [("router", router), ("need_login", need_login), ("guide", guide), ("finance_qa", finance_qa),
+                 ("screen_guide", screen_guide),
+                 ("sent_total", sent_total), ("limit_change", limit_change),
                  ("product_recommendation", product_recommendation),
                  ("account_query", account_query),
                  ("transfer_slots", transfer_slots), ("card_action", card_action),
                  ("confirm", confirm), ("execute", execute), ("cancel", cancel)]:
     b.add_node(name, fn)
 b.add_edge(START, "router")
-b.add_conditional_edges("router", after_router, ["need_login", "guide", "finance_qa", "account_query", "transfer_slots", "card_action", "product_recommendation", END])
+b.add_conditional_edges("router", after_router, ["need_login", "guide", "screen_guide", "finance_qa", "account_query", "sent_total", "limit_change", "transfer_slots", "card_action", "product_recommendation", END])
 b.add_conditional_edges("transfer_slots", after_slots, ["confirm", END])
 b.add_conditional_edges("card_action", after_card, ["confirm", END])
 b.add_conditional_edges("confirm", after_confirm, ["execute", "cancel"])
-for n in ("need_login", "guide", "finance_qa", "account_query", "product_recommendation", "execute", "cancel"):
+for n in ("need_login", "guide", "screen_guide", "finance_qa", "account_query", "sent_total", "limit_change", "product_recommendation", "execute", "cancel"):
     b.add_edge(n, END)
 # ponytail: 프로세스 메모리 체크포인터. 서버 재시작·여러 워커면 대화가 끊긴다 → DB가 서면 PostgresSaver (설계 §6)
 graph = b.compile(checkpointer=InMemorySaver())
@@ -480,6 +688,11 @@ def run(message: str, *, thread_id: str | None = None, db=None, user_id: uuid.UU
     prev = graph.get_state(config).values
     hist = list(prev.get("history", []))
     s = graph.invoke({**TURN_RESET, "message": message, "pending_action": None,
+                      "draft": None if (prev.get("draft") or {}).get("auto") and prev.get("intent") != "AUTO_TRANSFER" else prev.get("draft"),
+                      "pair_comparison": prev.get("intent") == "PRODUCT_RECOMMENDATION" and prev.get("status") == "ask" and prev.get("pair_comparison", False),
+                      "awaiting_limit_account": prev.get("intent") == "LIMIT_CHANGE" and prev.get("awaiting_limit_account", False),
+                      "awaiting_sent_to": prev.get("intent") == "SENT_TOTAL" and prev.get("awaiting_sent_to", False),
+                      "sent_to": None,
                       "history": hist + [("고객", redact_accounts(message))]}, config)
     return finish(s, config, thread_id)
 

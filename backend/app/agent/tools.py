@@ -12,11 +12,11 @@ from typing import Literal
 from datetime import date, datetime, time
 
 from langchain_core.tools import tool
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.errors import BankError
-from app.models import KST, Account, AccountProduct, AccountTransaction, Card, CardPayment, FavoriteRecipient, User
+from app.models import KST, Account, AccountProduct, AccountTransaction, Card, CardPayment, FavoriteRecipient, User, now_kst
 from app.services import accounts as acc_svc
 from app.services import cards as card_svc
 from app.services import insights
@@ -124,6 +124,34 @@ def find_recipients(db: Session, user_id: uuid.UUID, who: str) -> list[dict]:
     return out
 
 
+def sent_transfers(user_id: uuid.UUID):
+    t = AccountTransaction
+    return (select(t).join(Account, t.account_id == Account.id)
+            .where(Account.user_id == user_id, t.transaction_direction == "OUT",
+                   t.transaction_type.in_(("TRANSFER", "AUTO_TRANSFER")), t.amount > 0))
+
+
+def sent_recipient_choices(db: Session, user_id: uuid.UUID, who: str) -> dict[str, str]:
+    t = AccountTransaction
+    choices = {c["account_num"]: c["alias"] or mask_name(c["holder_name"])
+               for c in find_recipients(db, user_id, who)}
+    sent = sent_transfers(user_id).with_only_columns(t.counterparty_account, t.counterparty_name).distinct()
+    for number, name in db.execute(sent.where(t.counterparty_name == who, t.counterparty_account.is_not(None))):
+        choices.setdefault(number, mask_name(name))
+    return choices
+
+
+def sent_transfer_amount(db: Session, user_id: uuid.UUID, recipient_number: str, *, monthly=False):
+    t = AccountTransaction
+    sent = sent_transfers(user_id).where(t.counterparty_account == recipient_number)
+    if not monthly:
+        return db.scalar(sent.with_only_columns(t.amount).order_by(t.transaction_at.desc(), t.id.desc()).limit(1))
+    now = now_kst()
+    start = datetime.combine(now.date().replace(day=1), time.min, KST)
+    return db.execute(sent.where(t.transaction_at >= start, t.transaction_at <= now)
+                      .with_only_columns(func.count(t.id), func.coalesce(func.sum(t.amount), 0))).one()
+
+
 def my_cards(db: Session, user_id: uuid.UUID) -> list[Card]:
     return list(db.scalars(select(Card).join(Account, Card.account_id == Account.id)
                            .where(Account.user_id == user_id, Card.status.in_(("ACTIVE", "SUSPENDED")))))
@@ -223,10 +251,10 @@ def make_tools(db: Session, user_id: uuid.UUID, *, account: Account | None = Non
         return insights.detect_subscriptions(db, user_id)
 
     @tool
-    def recommend_accounts(purpose: Literal["general", "spending", "savings", "group"] = "general") -> dict:
+    def recommend_accounts(purpose: Literal["general", "spending", "savings", "group"] = "general", pair_only: bool = False) -> dict:
         """내 소비·급여성 입금·보유 상품으로 가상 입출금통장 비교 후보를 계산한다.
         purpose: 명시한 생활비 spending, 대기자금 savings, 모임 group, 미지정 general.
         가입 자격·우대 적용을 확정하거나 자동 개설하지 않는다."""
-        return recommendations.recommend_accounts(db, user_id, purpose)
+        return recommendations.recommend_accounts(db, user_id, purpose, pair_only=pair_only)
 
     return [list_accounts, get_transactions, get_limits, card_spending, spending_analysis, balance_forecast, detect_subscriptions, recommend_accounts]

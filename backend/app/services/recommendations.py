@@ -22,7 +22,7 @@ def product_catalog():
     return {row["id"]: row for row in json.loads(path.read_text(encoding="utf-8"))}
 
 
-def recommend_accounts(db, user_id, purpose="general", *, at=None):
+def recommend_accounts(db, user_id, purpose="general", *, at=None, pair_only=False):
     if purpose not in ("general", "spending", "savings", "group"):
         raise BankError("INVALID_INPUT", "통장 사용 목적을 확인해 주세요.")
     user = db.get(User, user_id)
@@ -71,7 +71,12 @@ def recommend_accounts(db, user_id, purpose="general", *, at=None):
     database_products = list(db.scalars(select(AccountProduct).order_by(AccountProduct.code)))
     held = {a.product_id for a in accounts if a.status != "CLOSED"}
     candidates = []
+    desired = "basic" if pair_only and purpose == "spending" else {
+        "spending": "living", "savings": "parking", "group": "group",
+    }.get(purpose)
     for product in database_products:
+        if pair_only and product.code not in ("basic", "parking"):
+            continue
         spec = product_catalog().get(product.code)
         if not spec or product.interest_rate is None or product.interest_rate != Decimal(str(spec["rate"])):
             notes.append(f"{product.product_name}은 상품 상세와 현재 금리 조건을 확인한 뒤 비교할 수 있어요.")
@@ -96,14 +101,14 @@ def recommend_accounts(db, user_id, purpose="general", *, at=None):
                 score += 25
                 reasons.append(f"전월 급여성 입금 {salary:,}원이 관측됐어요. 실제 급여 우대 인정 여부는 별도 확인해야 해요.")
         elif code == "parking":
-            if purpose != "savings" and (not enough or forecast["월말예상잔액"] <= 0):
+            if not pair_only and purpose != "savings" and (not enough or forecast["월말예상잔액"] <= 0):
                 continue
             score = 20
             if enough and forecast["월말예상잔액"] > 0:
                 score += 20 if forecast["월말예상잔액"] * 2 >= forecast["현재총잔액"] else 0
                 reasons.append(f"예측상 월말 잔액 {forecast['월말예상잔액']:,}원이 있어 수시로 꺼낼 대기 자금 보관 용도로 비교해요.")
             else:
-                reasons.append("잠시 돈을 보관하려는 목적에 맞춰 비교해요. 여유 자금이 확인됐다는 뜻은 아니에요.")
+                reasons.append("수시로 꺼낼 자금을 잠시 보관할 때 비교할 수 있어요.")
         elif code == "youth":
             if age is None or not 19 <= age <= 34:
                 continue
@@ -116,11 +121,10 @@ def recommend_accounts(db, user_id, purpose="general", *, at=None):
             reasons.append("직접 말씀하신 모임 회비 관리 목적을 기준으로 비교해요. 이체 상대만 보고 모임이라고 추정하지 않았어요.")
         else:
             continue
-        desired = {"spending": "living", "savings": "parking", "group": "group"}.get(purpose)
         if code == desired:
             score += 200
             reasons.insert(0, "말씀하신 통장 사용 목적을 우선 반영했어요.")
-        if not enough and code not in (desired, "basic"):
+        if not pair_only and not enough and code not in (desired, "basic"):
             continue
         already_held = product.id in held
         if already_held:
