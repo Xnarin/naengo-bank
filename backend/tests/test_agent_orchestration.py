@@ -296,7 +296,7 @@ def test_overlapping_balance_requests_use_each_users_real_tool_data(bank, monkey
         overlap.wait()
         return AIMessage(content="", tool_calls=[{"name": "list_accounts", "args": {}, "id": "balance"}])
 
-    monkeypatch.setattr(agent, "llm", SimpleNamespace(bind_tools=lambda _: SimpleNamespace(invoke=invoke)))
+    monkeypatch.setattr(agent, "query_llm", SimpleNamespace(bind_tools=lambda _, **kw: SimpleNamespace(invoke=invoke)))
     with ThreadPoolExecutor(max_workers=2) as pool:
         a, b = [future.result() for future in (
             pool.submit(chat, client, "내 잔액 알려줘"),

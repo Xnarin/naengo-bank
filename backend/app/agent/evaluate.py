@@ -34,7 +34,8 @@ from sqlalchemy.engine import Engine  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app.agent.graph import llm, resume, run  # noqa: E402
+from app.agent.graph import resume, run  # noqa: E402
+from app.agent.rag import MODEL, QUERY_MODEL  # noqa: E402
 from app.models import (Account, AccountProduct, AccountTransaction, Base, Card, CardPayment,  # noqa: E402
                         FavoriteRecipient, Transfer, User, now_kst)
 from app.security import hash_secret  # noqa: E402
@@ -513,7 +514,8 @@ def evaluate_queries(config: QueryConfig) -> int:
     finally:
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(json.dumps({
-            "started_at": now.isoformat(), "model": llm.model, "config": config.model_dump(),
+            "started_at": now.isoformat(), "model": QUERY_MODEL, "query_model": QUERY_MODEL,
+            "router_model": MODEL, "config": config.model_dump(),
             "passed": sum(item["ok"] for item in results), "results": results,
         }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         print(f"리포트 {report}")

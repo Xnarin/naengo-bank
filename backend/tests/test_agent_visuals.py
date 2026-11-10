@@ -55,12 +55,12 @@ def test_graph_attaches_server_charts_and_does_not_reuse_old_charts(bank, monkey
             return next(self.messages)
 
     config = {"configurable": {"db": db, "user_id": me.id}}
-    monkeypatch.setattr(graph, "llm", Model("spending_analysis", {}))
+    monkeypatch.setattr(graph, "query_llm", Model("spending_analysis", {}))
     first = graph.account_query({"message": "소비 분석"}, config)
     assert first["blocks"][0]["kind"] == "spendingInsight" and first["blocks"][0]["total"] == 6000
-    monkeypatch.setattr(graph, "llm", Model("list_accounts", {}))
+    monkeypatch.setattr(graph, "query_llm", Model("list_accounts", {}))
     assert graph.account_query({"message": "잔액", "blocks": first["blocks"]}, config)["blocks"] == []
-    monkeypatch.setattr(graph, "llm", Model("spending_analysis", {"month": "invalid"}))
+    monkeypatch.setattr(graph, "query_llm", Model("spending_analysis", {"month": "invalid"}))
     assert graph.account_query({"message": "소비 분석"}, config)["blocks"] == []
 
 

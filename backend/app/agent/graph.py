@@ -31,7 +31,10 @@ from pydantic import BaseModel, Field
 
 from app.agent import tools as T
 from app.agent.insight_blocks import insight_block
-from app.agent.rag import llm, rag_graph, source_label
+from app.agent.lite_query import (
+    PERIOD_ONLY, card_followup_args, literal_account_hint, month_ranges, requested_range, simple_balance_question,
+)
+from app.agent.rag import FLASH_LITE, QUERY_MODEL, llm, query_llm, rag_graph, source_label
 from app.errors import BankError
 from app.models import now_kst
 from app.services import auto_transfers
@@ -41,6 +44,7 @@ from app.services.cards import last4
 Intent = Literal["ACCOUNT_QUERY", "SENT_TOTAL", "LIMIT_CHANGE", "PRODUCT_RECOMMENDATION", "TRANSFER", "AUTO_TRANSFER",
                  "OPEN_ACCOUNT", "ISSUE_CARD", "AUTO_TRANSFER_LIST", "CARD_ACTION", "FINANCE_QA", "UNSUPPORTED"]
 MAX_TOOL_ROUNDS = 4
+LITE_QUERY = QUERY_MODEL == FLASH_LITE
 HISTORY_TURNS = 6
 ACCOUNT_SEPARATOR = r"(?:[ \t]*-[ \t]*|[ \t]+)"
 ACCOUNT_NUMBER = re.compile(rf"(?<![0-9])(?:[0-9]{{3}}{ACCOUNT_SEPARATOR}[0-9]{{4}}{ACCOUNT_SEPARATOR}[0-9]{{4}}|[0-9]{{11}})(?![0-9])")
@@ -160,6 +164,7 @@ class AgentState(TypedDict, total=False):
     history: list[tuple[str, str]]
     draft: dict | None  # 진행 중인 송금 슬롯 {recipient, amount, from_hint, to: {...}, from_id}
     pending_action: dict | None  # confirm 화면에 보여줄 값 = 실행할 값
+    last_card_query: dict | None
     sent_to: str | None
     awaiting_sent_to: bool
     pair_comparison: bool
@@ -204,6 +209,8 @@ def router(state: AgentState, config):
     _, user_id = ctx(config)
     if user_id is not None and state.get("awaiting_sent_to") and ACCOUNT_NUMBER.fullmatch(state["message"].strip()):
         return {"intent": "SENT_TOTAL", "sent_to": account_digits(state["message"])}
+    if LITE_QUERY and user_id is not None and state.get("last_card_query") and PERIOD_ONLY.fullmatch(state["message"].strip()):
+        return {"intent": "ACCOUNT_QUERY"}
     if user_id is not None and d is not None and not d.get("to") and ACCOUNT_NUMBER.fullmatch(state["message"].strip()):
         return {"intent": "AUTO_TRANSFER" if d.get("auto") else "TRANSFER"}
     pending_intent = "AUTO_TRANSFER" if d and d.get("auto") else "TRANSFER"
@@ -245,7 +252,7 @@ def after_router(state: AgentState):
         return END
     if state["intent"] in SCREEN_GUIDES:
         return "screen_guide"
-    return {"ACCOUNT_QUERY": "account_query", "TRANSFER": "transfer_slots", "CARD_ACTION": "card_action",
+    return {"ACCOUNT_QUERY": "lite_account_query" if LITE_QUERY else "account_query", "TRANSFER": "transfer_slots", "CARD_ACTION": "card_action",
             "AUTO_TRANSFER": "transfer_slots",
             "SENT_TOTAL": "sent_total", "LIMIT_CHANGE": "limit_change",
             "PRODUCT_RECOMMENDATION": "product_recommendation", "FINANCE_QA": "finance_qa"}.get(state["intent"], "guide")
@@ -282,11 +289,18 @@ def drop_screen_refs(text: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", out).strip()
 
 
-def account_query(state: AgentState, config):
+def lite_account_query(state: AgentState, config):
+    return {"last_card_query": None, **account_query(state, config, lite=True)}
+
+
+def account_query(state: AgentState, config, *, lite=False):
     db, user_id = ctx(config)
     account = None
     hint = (state.get("account_hint") or "").strip()
     message, refs = account_references(state["message"])
+    if lite and not refs:
+        labels = [T.account_label(db, a) for a in T.my_accounts(db, user_id)]
+        hint = literal_account_hint(message, hint, labels)
     if hint:
         is_number = ACCOUNT_NUMBER.fullmatch(hint)
         if is_number:
@@ -304,24 +318,48 @@ def account_query(state: AgentState, config):
             return {"answer": "어느 계좌인지 정확한 이름이나 계좌 끝자리를 알려 주세요.",
                     "status": "ask", "blocks": []}
         account = matches[0]
-    tools = {t.name: t for t in T.make_tools(db, user_id, account=account)}
-    model = llm.bind_tools(list(tools.values()))
+    tools = {t.name: t for t in T.make_tools(db, user_id, account=account) if t.name != "recommend_accounts"}
+    if lite and not refs and simple_balance_question(message, T.account_label(db, account) if account else None):
+        rows = tools["list_accounts"].invoke({})
+        answer = "\n".join(f"{redact_accounts(row['계좌'])} 잔액은 {row['잔액']:,}원이에요." for row in rows)
+        return {"answer": answer or "조회할 수 있는 계좌가 없어요.", "status": "answered", "blocks": []}
+    model = query_llm.bind_tools(list(tools.values()))
     visuals = {}
     today = now_kst()
     system = ACCOUNT_SYSTEM.format(today=today.strftime("%Y-%m-%d (%a)")) + "\n" + ACCOUNT_REF_RULE
+    if lite:
+        previous_card = state.get("last_card_query")
+        ranges = month_ranges(today.date())
+        period = requested_range(message, ranges, previous_card)
+        system += (f"\n서버 기준 기간: 지난달 {ranges['지난'][0]}~{ranges['지난'][1]}, "
+                   f"이번 달 {ranges['이번'][0]}~{ranges['이번'][1]}. "
+                   "이 질문에 맞는 도구를 먼저 호출한다. 대화 기록의 금액은 인용하지 않는다.")
+        if previous_card:
+            system += f"\n직전 카드 조회 조건(자료): {redact_accounts(str(previous_card))}"
+        followup = card_followup_args(message, period, previous_card)
+        if followup:
+            result = tools["card_spending"].invoke(followup)
+            category = redact_accounts(followup.get("category") or "전체")
+            return {"answer": f"{followup['start']}~{followup['end']} 체크카드 {category} 결제 합계는 {result['합계']:,}원이에요.",
+                    "status": "answered", "blocks": [], "last_card_query": followup}
+        first_model = query_llm.bind_tools(list(tools.values()), tool_choice="required")
     msgs = [SystemMessage(system), HumanMessage(f"최근 대화:\n{history_text(state)}\n\n질문: {message}")]
+    successful_calls = []
     for _ in range(MAX_TOOL_ROUNDS):
-        ai = model.invoke(msgs)
+        ai = (first_model if lite and not successful_calls else model).invoke(msgs)
         msgs.append(ai)
         if not ai.tool_calls:
             break
         for tc in ai.tool_calls:
             try:
                 args = {k: refs.get(v, v) if isinstance(v, str) else v for k, v in tc["args"].items()}
+                if lite and period and tc["name"] in {"get_transactions", "card_spending"}:
+                    args.update(start=period[0], end=period[1])
                 out = tools[tc["name"]].invoke(args)
+                successful_calls.append((tc["name"], args))
             except (BankError, ValueError, KeyError) as e:
                 out = f"오류: {getattr(e, 'message', e)}"
-            block = insight_block(tc["name"], out, tc["args"])
+            block = insight_block(tc["name"], out, args if lite else tc["args"])
             if block:
                 key = (block["kind"], block.get("month", block.get("start", "")))
                 visuals[key] = block
@@ -330,6 +368,10 @@ def account_query(state: AgentState, config):
     answer = drop_screen_refs(ai.text.strip())
     result = {"answer": answer or "조회 결과를 정리하지 못했어요. 다시 말씀해 주세요.",
               "status": "answered", "blocks": list(visuals.values())}
+    if lite and not successful_calls:
+        result["answer"] = "조회 결과를 확인하지 못했어요. 다시 말씀해 주세요."
+    if lite and len(successful_calls) == 1 and successful_calls[0][0] == "card_spending":
+        result["last_card_query"] = successful_calls[0][1]
     return result
 
 
@@ -664,16 +706,16 @@ for name, fn in [("router", router), ("need_login", need_login), ("guide", guide
                  ("screen_guide", screen_guide),
                  ("sent_total", sent_total), ("limit_change", limit_change),
                  ("product_recommendation", product_recommendation),
-                 ("account_query", account_query),
+                 ("account_query", account_query), ("lite_account_query", lite_account_query),
                  ("transfer_slots", transfer_slots), ("card_action", card_action),
                  ("confirm", confirm), ("execute", execute), ("cancel", cancel)]:
     b.add_node(name, fn)
 b.add_edge(START, "router")
-b.add_conditional_edges("router", after_router, ["need_login", "guide", "screen_guide", "finance_qa", "account_query", "sent_total", "limit_change", "transfer_slots", "card_action", "product_recommendation", END])
+b.add_conditional_edges("router", after_router, ["need_login", "guide", "screen_guide", "finance_qa", "account_query", "lite_account_query", "sent_total", "limit_change", "transfer_slots", "card_action", "product_recommendation", END])
 b.add_conditional_edges("transfer_slots", after_slots, ["confirm", END])
 b.add_conditional_edges("card_action", after_card, ["confirm", END])
 b.add_conditional_edges("confirm", after_confirm, ["execute", "cancel"])
-for n in ("need_login", "guide", "screen_guide", "finance_qa", "account_query", "sent_total", "limit_change", "product_recommendation", "execute", "cancel"):
+for n in ("need_login", "guide", "screen_guide", "finance_qa", "account_query", "lite_account_query", "sent_total", "limit_change", "product_recommendation", "execute", "cancel"):
     b.add_edge(n, END)
 # ponytail: 프로세스 메모리 체크포인터. 서버 재시작·여러 워커면 대화가 끊긴다 → DB가 서면 PostgresSaver (설계 §6)
 graph = b.compile(checkpointer=InMemorySaver())
@@ -689,6 +731,7 @@ def run(message: str, *, thread_id: str | None = None, db=None, user_id: uuid.UU
     hist = list(prev.get("history", []))
     s = graph.invoke({**TURN_RESET, "message": message, "pending_action": None,
                       "draft": None if (prev.get("draft") or {}).get("auto") and prev.get("intent") != "AUTO_TRANSFER" else prev.get("draft"),
+                      "last_card_query": prev.get("last_card_query") if prev.get("intent") == "ACCOUNT_QUERY" else None,
                       "pair_comparison": prev.get("intent") == "PRODUCT_RECOMMENDATION" and prev.get("status") == "ask" and prev.get("pair_comparison", False),
                       "awaiting_limit_account": prev.get("intent") == "LIMIT_CHANGE" and prev.get("awaiting_limit_account", False),
                       "awaiting_sent_to": prev.get("intent") == "SENT_TOTAL" and prev.get("awaiting_sent_to", False),

@@ -60,7 +60,7 @@ def test_owned_account_reference_is_resolved_without_sending_raw_number(monkeypa
         assert "[계좌번호1]" in messages[-1].content
         return AIMessage(content="", tool_calls=[{"name": "list_accounts", "args": {}, "id": "accounts"}])
 
-    monkeypatch.setattr(graph, "llm", SimpleNamespace(bind_tools=lambda _: SimpleNamespace(invoke=invoke)))
+    monkeypatch.setattr(graph, "query_llm", SimpleNamespace(bind_tools=lambda _, **kw: SimpleNamespace(invoke=invoke)))
     with evaluate.seed() as db:
         db.get(Account, evaluate.A_MAIN).nickname = number
         state = graph.run(f"{number} 계좌 잔액 알려줘", db=db, user_id=evaluate.ME)
