@@ -42,7 +42,7 @@ from app.services.transfers import transfer
 from app.services.cards import last4
 
 Intent = Literal["ACCOUNT_QUERY", "SENT_TOTAL", "LIMIT_CHANGE", "PRODUCT_RECOMMENDATION", "TRANSFER", "AUTO_TRANSFER",
-                 "OPEN_ACCOUNT", "ISSUE_CARD", "AUTO_TRANSFER_LIST", "CARD_ACTION", "FINANCE_QA", "UNSUPPORTED"]
+                 "OPEN_ACCOUNT", "ISSUE_CARD", "AUTO_TRANSFER_LIST", "ACCOUNT_STOP", "CARD_ACTION", "FINANCE_QA", "UNSUPPORTED"]
 MAX_TOOL_ROUNDS = 4
 LITE_QUERY = QUERY_MODEL == FLASH_LITE
 HISTORY_TURNS = 6
@@ -53,6 +53,7 @@ ACCOUNT_REF_RULE = "메시지의 [계좌번호1] 같은 표시는 계좌번호�
 SELF_RECIPIENT = re.compile(r"(?:나(?:한테|에게)?|(?:내|본인)\s*(?:계좌|통장))(?:에|로|으로)?")
 LAST_TRANSFER_AMOUNT = re.compile(r"(?:저번|지난번|직전|마지막)(?:에)?\s*(?:보낸|송금한|이체한)\s*(?:만큼|금액(?:만큼|으로|과\s*같이))")
 AMOUNT_REPLY = re.compile(r"([+−-]?[0-9]+(?:,[0-9]{3})*)\s*원?")
+ACCOUNT_STOP = re.compile(r"(?:계좌|통장)\s*(?:[을를은는만]\s*)?(?:(?:좀|일시|잠시|거래|사용을?)\s*)*(?:정지|중지|막아|막고|잠가|잠그)")
 PAIR_PURPOSE_OPTIONS = [
     {"label": "일상 결제·생활비", "value": "일상 결제용으로 입출금통장과 파킹통장을 비교해줘"},
     {"label": "잠시 돈 보관", "value": "돈을 잠시 보관하려고 입출금통장과 파킹통장을 비교해줘"},
@@ -107,6 +108,7 @@ ROUTER_PROMPT = """내금고 은행 앱 AI 어시스턴트에 들어온 고객 �
   "내 소비패턴에 맞는 통장 추천"의 purpose는 general이다. 분석 기준은 사용 목적이 아니다. "생활비 관리용"처럼 용도를 직접 말했을 때만 spending이다.
   "입출금통장이 좋을지 파킹통장이 좋을지"도 PRODUCT_RECOMMENDATION이다. 목적을 묻고 나서 "일상 결제용"은 spending, "잠시 돈 보관"은 savings로 고른다.
 - CARD_ACTION: 내 카드를 정지해 달라는 요청 ("카드 잃어버렸어 정지해줘")
+- ACCOUNT_STOP: 계좌·통장을 정지하거나 거래를 막아 달라는 요청. 카드 정지와 다르며 CARD_ACTION으로 분류하지 않는다.
 - FINANCE_QA: 은행 이용 방법, 상품, 이자, 수수료, 한도 규정, 보안, 금융사기, 예금자보호, 대출 규정 등 정보·규정 질문.
   "~하면 어떻게 되나요?", "~해도 되나요?", "카드 잃어버렸는데 어떻게 해야 하나요?"처럼 방법을 묻는 질문도 여기다.
 - UNSUPPORTED: 은행과 무관한 잡담, 주식·코인 투자 추천, 실시간 시세(환율·주가)
@@ -144,6 +146,7 @@ NEED_LOGIN = {  # 로그인 없이 들어온 조회·이체·카드 (프론트 M
     "AUTO_TRANSFER": ("자동이체는 로그인 후 등록할 수 있어요.", [{"label": "로그인", "to": "/login"}]),
 }
 SCREEN_GUIDES = {
+    "ACCOUNT_STOP": ("계좌 정지는 챗봇에서 지원하지 않아요. 계좌를 없애려는 뜻이라면 홈에서 해당 계좌의 관리 화면으로 들어가 ‘계좌 해지’를 이용해 주세요.", "내 계좌 보기", "/"),
     "OPEN_ACCOUNT": ("상품을 고른 뒤 계좌 개설을 진행할 수 있어요.", "계좌 상품 보기", "/products"),
     "ISSUE_CARD": ("카드 발급 화면에서 연결할 계좌를 고를 수 있어요.", "카드 발급하기", "/cards/new"),
     "AUTO_TRANSFER_LIST": ("등록한 자동이체는 자동이체 관리 화면에서 확인하거나 해지할 수 있어요.", "자동이체 관리", "/auto-transfers"),
@@ -246,6 +249,8 @@ def transfer_reply_slots(state: AgentState, config) -> TransferSlots | None:
 
 
 def router(state: AgentState, config):
+    if ACCOUNT_STOP.search(state["message"]):
+        return {"intent": "ACCOUNT_STOP"}
     d = state.get("draft")
     _, user_id = ctx(config)
     if user_id is not None and state.get("awaiting_sent_to") and ACCOUNT_NUMBER.fullmatch(state["message"].strip()):
@@ -687,6 +692,8 @@ def after_slots(state: AgentState):
 
 
 def card_action(state: AgentState, config):
+    if ACCOUNT_STOP.search(state["message"]):
+        return screen_guide({"intent": "ACCOUNT_STOP"})
     db, user_id = ctx(config)
     message, _ = account_references(state["message"])
     s = card_llm.invoke(f"카드 요청에서 동작과 카드를 뽑아라.\n메시지: {message}")

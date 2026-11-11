@@ -428,6 +428,35 @@ def test_card_confirmation_still_executes_with_matching_id(bank, monkeypatch, me
         assert db.get(Card, evaluate.CARD).status == "SUSPENDED"
 
 
+@pytest.mark.parametrize("message", ["계좌 정지하고 싶어", "입출금통장을 일시 정지해줘", "내 계좌 좀 막아줘", "카드 말고 계좌 정지해줘"])
+def test_account_stop_never_becomes_card_confirmation(bank, monkeypatch, message):
+    client, engine, _ = bank
+    def unexpected_model_call(_):
+        raise AssertionError("명확한 계좌 정지 요청은 모델 없이 안내한다")
+    for name in ("router_llm", "card_llm"):
+        monkeypatch.setattr(agent, name, SimpleNamespace(invoke=unexpected_model_call))
+    data = chat(client, message).json()
+    assert data["status"] == "guided" and data["confirmation_id"] is None
+    assert data["confirm"] is None
+    assert "계좌 정지는 챗봇에서 지원하지 않아요" in data["blocks"][0]["text"]
+    assert "계좌 해지" in data["blocks"][0]["text"]
+    # 분류기를 우회해 카드 노드를 직접 호출해도 카드 조치로 진행하지 않는다.
+    assert agent.card_action({"message": message}, {})["status"] == "guided"
+    with Session(engine) as db:
+        assert db.get(Card, evaluate.CARD).status == "ACTIVE"
+        assert db.get(Account, evaluate.A_MAIN).status == "ACTIVE"
+
+
+def test_account_linked_card_stop_still_requires_pin(bank, monkeypatch):
+    client, engine, _ = bank
+    monkeypatch.setattr(agent, "router_llm", SimpleNamespace(invoke=lambda _: agent.Route(intent="CARD_ACTION")))
+    monkeypatch.setattr(agent, "card_llm", SimpleNamespace(invoke=lambda _: agent.CardSlots(action="SUSPEND")))
+    data = chat(client, "계좌에 연결된 끝자리 4821 카드 정지해줘").json()
+    assert data["status"] == "confirm" and data["confirmation_type"] == "CARD_SUSPEND"
+    with Session(engine) as db:
+        assert db.get(Card, evaluate.CARD).status == "ACTIVE"
+
+
 @pytest.mark.parametrize("model_hint", ["9999", "4821", None])
 def test_unknown_card_never_confirms_another_card(bank, monkeypatch, model_hint):
     client, engine, _ = bank
