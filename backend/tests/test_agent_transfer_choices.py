@@ -1,9 +1,10 @@
 from types import SimpleNamespace
 
+import pytest
 from sqlalchemy import func, select
 
 from app.agent import graph as agent
-from app.models import FavoriteRecipient, Transfer
+from app.models import AutoTransfer, FavoriteRecipient, Transfer
 from app.services.transfers import transfer
 from test_transfers_api import bank  # noqa: F401
 
@@ -69,3 +70,63 @@ def test_self_transfer_offers_only_owned_destinations(bank, monkeypatch):
     result = agent.transfer_slots({"message": "나한테 송금"}, config)
     assert "두 개 이상" in result["answer"]
     assert all(block.get("title") != "내 계좌" for block in result["blocks"])
+
+
+@pytest.mark.parametrize("scheduled", [False, True])
+@pytest.mark.parametrize("legacy", [False, True])
+def test_source_choice_advances_without_model(bank, monkeypatch, scheduled, legacy):
+    _, db, user, _, source, mine, target = bank
+    source.nickname = "내금고 입출금통장"
+    mine.nickname = "내금고 파킹통장"
+    db.commit()
+    intent = "AUTO_TRANSFER" if scheduled else "TRANSFER"
+    slots = agent.AutoTransferSlots(amount=10000, cycle="MONTHLY") if scheduled else agent.TransferSlots(amount=10000)
+    monkeypatch.setattr(agent, "router_llm", SimpleNamespace(invoke=lambda _: agent.Route(intent=intent)))
+    monkeypatch.setattr(agent, "auto_slot_llm" if scheduled else "slot_llm", SimpleNamespace(invoke=lambda _: slots))
+    start = agent.run("매월 15일에 만원 자동이체해줘" if scheduled else "만원 보내줘", db=db, user_id=user.id)
+    choose_source = agent.run(target.account_num, thread_id=start["thread_id"], db=db, user_id=user.id)
+    assert choose_source["answer"] == "어느 계좌에서 보낼까요?"
+    options = choose_source["blocks"][0]["options"]
+    assert {o["value"] for o in options} == {f"{source.account_num}에서", f"{mine.account_num}에서"}
+
+    def unexpected_model_call(_):
+        raise AssertionError("출금 계좌 버튼은 모델 없이 처리해야 한다")
+
+    for name in ("router_llm", "slot_llm", "auto_slot_llm"):
+        monkeypatch.setattr(agent, name, SimpleNamespace(invoke=unexpected_model_call))
+    message = "내금고 입출금통장에서" if legacy else options[0]["value"]
+    selected = agent.run(message, thread_id=start["thread_id"], db=db, user_id=user.id)
+    assert selected["status"] == "confirm"
+    assert selected["intent"] == intent
+    assert selected["confirm"]["출금 계좌"].endswith("111-****-1111")
+    assert selected["confirm"]["받는 계좌"] == "333-****-3333"
+    assert selected["confirm"]["금액"] == 10000
+    if scheduled:
+        assert selected["confirm"]["주기"] == "매월 15일"
+    assert db.scalar(select(func.count()).select_from(Transfer)) == 0
+    assert db.scalar(select(func.count()).select_from(AutoTransfer)) == 0
+
+
+def test_source_choices_distinguish_duplicate_names_and_reject_invalid_accounts(bank, monkeypatch):
+    _, db, user, _, source, mine, target = bank
+    source.nickname = mine.nickname = "같은 이름"
+    config = {"configurable": {"db": db, "user_id": user.id}}
+    draft = {"auto": True, "amount": 10000, "cycle": "MONTHLY", "run_day": 15,
+             "to": {"account_id": str(target.id), "account_num": target.account_num,
+                    "holder_name": "홍길동", "alias": None}}
+
+    def unexpected_model_call(_):
+        raise AssertionError("계좌번호로 선택한 출금 계좌는 모델에 전달하지 않는다")
+
+    monkeypatch.setattr(agent, "auto_slot_llm", SimpleNamespace(invoke=unexpected_model_call))
+    assert agent.source_choice_hint({"message": "같은 이름에서", "draft": draft}, config) is None
+    for invalid in (target.account_num, "999-9999-9999"):
+        result = agent.transfer_slots({"message": f"{invalid}에서", "intent": "AUTO_TRANSFER", "draft": draft}, config)
+        assert result["status"] == "ask" and "from_id" not in result["draft"]
+        options = result["blocks"][0]["options"]
+        assert len({o["label"] for o in options}) == 2
+    result = agent.transfer_slots({"message": f"{mine.account_num}에서", "intent": "AUTO_TRANSFER", "draft": draft}, config)
+    assert result["pending_action"]["from_account_id"] == str(mine.id)
+    mine.status = "SUSPENDED"
+    result = agent.transfer_slots({"message": f"{mine.account_num}에서", "intent": "AUTO_TRANSFER", "draft": draft}, config)
+    assert result["status"] == "ask" and "from_id" not in result["draft"]

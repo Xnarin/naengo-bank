@@ -204,6 +204,26 @@ def history_text(state: AgentState) -> str:
     return "\n".join(f"{r}: {redact_accounts(t)}" for r, t in state.get("history", [])[-HISTORY_TURNS:]) or "(없음)"
 
 
+def source_choice_hint(state: AgentState, config) -> str | None:
+    d = state.get("draft") or {}
+    if not d.get("to") or d.get("from_id"):
+        return None
+    message = state["message"].strip()
+    if not message.endswith("에서"):
+        return None
+    hint = message[:-2].strip()
+    if ACCOUNT_NUMBER.fullmatch(hint):
+        return account_digits(hint)
+    db, user_id = ctx(config)
+    if db is None or user_id is None:
+        return None
+    # 이전 화면의 이름만 있는 버튼도 한 계좌로 확정될 때만 처리한다.
+    matches = [a for a in T.my_accounts(db, user_id)
+               if a.status == "ACTIVE" and str(a.id) != d["to"]["account_id"]
+               and T.account_label(db, a) == hint]
+    return matches[0].account_num if len(matches) == 1 else None
+
+
 def router(state: AgentState, config):
     d = state.get("draft")
     _, user_id = ctx(config)
@@ -212,6 +232,8 @@ def router(state: AgentState, config):
     if LITE_QUERY and user_id is not None and state.get("last_card_query") and PERIOD_ONLY.fullmatch(state["message"].strip()):
         return {"intent": "ACCOUNT_QUERY"}
     if user_id is not None and d is not None and not d.get("to") and ACCOUNT_NUMBER.fullmatch(state["message"].strip()):
+        return {"intent": "AUTO_TRANSFER" if d.get("auto") else "TRANSFER"}
+    if user_id is not None and source_choice_hint(state, config) is not None:
         return {"intent": "AUTO_TRANSFER" if d.get("auto") else "TRANSFER"}
     pending_intent = "AUTO_TRANSFER" if d and d.get("auto") else "TRANSFER"
     pending = (f"{pending_intent} 등록 중 (받는 분={d.get('recipient') or '?'}, 금액={d.get('amount') or '?'}). "
@@ -462,7 +484,10 @@ def transfer_slots(state: AgentState, config):
         d["auto"] = True
     message = state["message"].strip()
     reuse_amount = not scheduled and bool(LAST_TRANSFER_AMOUNT.search(message))
-    if not d.get("to") and ACCOUNT_NUMBER.fullmatch(message):
+    source_hint = source_choice_hint(state, config)
+    if source_hint is not None:
+        s = AutoTransferSlots(from_hint=source_hint) if scheduled else TransferSlots(from_hint=source_hint)
+    elif not d.get("to") and ACCOUNT_NUMBER.fullmatch(message):
         s = TransferSlots(recipient=account_digits(message))
     else:
         message, refs = account_references(message)
@@ -573,7 +598,9 @@ def transfer_slots(state: AgentState, config):
                 d.pop("to")
                 return ask("이 계좌로 보낼 수 있는 출금 계좌가 없어요. 다른 받는 계좌를 골라 주세요.",
                            blocks=T.recipient_choices(db, user_id))
-            return ask("어느 계좌에서 보낼까요?", [f"{T.account_label(db, a)}에서" for a in mine])
+            return ask("어느 계좌에서 보낼까요?", blocks=[{"kind": "choices", "options": [
+                {"label": f"{T.account_label(db, a)} · {T.mask_num(a.account_num)}에서",
+                 "value": f"{a.account_num}에서"} for a in mine]}])
         d["from_id"] = str(accs[0].id)
     previous_amount = T.sent_transfer_amount(db, user_id, d["to"]["account_num"]) if d.get("reuse_amount") else None
     amount = previous_amount if d.get("reuse_amount") else d.get("amount")
