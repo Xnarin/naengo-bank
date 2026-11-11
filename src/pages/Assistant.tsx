@@ -300,7 +300,7 @@ function BlockView({ b, active, onAsk, onInput, onGo, onConfirm, onCancel, onChe
           <div className="flex flex-wrap gap-2">
             {b.options.map((o) => (
               <button key={o.value ?? o.label} disabled={!active}
-                onClick={() => o.value === undefined ? onInput() : onAsk(o.value, b.title ? o.label : undefined)} className={chip}>
+                onClick={() => o.value === undefined ? onInput() : onAsk(o.value, o.label)} className={chip}>
                 {o.label}
               </button>
             ))}

@@ -130,3 +130,70 @@ def test_source_choices_distinguish_duplicate_names_and_reject_invalid_accounts(
     mine.status = "SUSPENDED"
     result = agent.transfer_slots({"message": f"{mine.account_num}에서", "intent": "AUTO_TRANSFER", "draft": draft}, config)
     assert result["status"] == "ask" and "from_id" not in result["draft"]
+
+
+@pytest.mark.parametrize("amount_reply", ["500원", "500원 보내줘"])
+def test_auto_transfer_keeps_recipient_source_and_kind_after_amount(bank, monkeypatch, amount_reply):
+    _, db, user, _, source, _, target = bank
+    monkeypatch.setattr(agent, "router_llm", SimpleNamespace(invoke=lambda _: agent.Route(intent="AUTO_TRANSFER")))
+    monkeypatch.setattr(agent, "auto_slot_llm", SimpleNamespace(invoke=lambda _: agent.AutoTransferSlots()))
+    start = agent.run("자동 송금 예약", db=db, user_id=user.id)
+    recipient = agent.run(target.account_num, thread_id=start["thread_id"], db=db, user_id=user.id)
+    selected = agent.run(f"{source.account_num}에서", thread_id=start["thread_id"], db=db, user_id=user.id)
+    assert "얼마" in selected["answer"]
+    # 후속 금액을 일반 송금으로 잘못 분류해도 진행 중인 자동이체를 버리지 않는다.
+    monkeypatch.setattr(agent, "router_llm", SimpleNamespace(invoke=lambda _: agent.Route(intent="TRANSFER")))
+    monkeypatch.setattr(agent, "slot_llm", SimpleNamespace(invoke=lambda _: agent.TransferSlots(amount=500)))
+    monkeypatch.setattr(agent, "auto_slot_llm", SimpleNamespace(invoke=lambda _: agent.AutoTransferSlots(amount=500)))
+    amount = agent.run(amount_reply, thread_id=start["thread_id"], db=db, user_id=user.id)
+    assert amount["intent"] == "AUTO_TRANSFER"
+    assert amount["status"] == "ask" and "매주" in amount["answer"]
+    assert amount["draft"]["to"] == recipient["draft"]["to"]
+    assert amount["draft"]["from_id"] == str(source.id)
+    monkeypatch.setattr(agent, "auto_slot_llm", SimpleNamespace(invoke=lambda _: agent.AutoTransferSlots(cycle="MONTHLY")))
+    cycle = agent.run("매월", thread_id=start["thread_id"], db=db, user_id=user.id)
+    assert cycle["intent"] == "AUTO_TRANSFER" and "며칠" in cycle["answer"]
+    final = agent.run("15일", thread_id=start["thread_id"], db=db, user_id=user.id)
+    assert final["status"] == "confirm"
+    assert final["pending_action"]["type"] == "AUTO_TRANSFER"
+    assert final["confirm"]["주기"] == "매월 15일"
+    assert final["confirm"]["금액"] == 500
+    assert final["confirm"]["받는 계좌"] == "333-****-3333"
+    assert db.scalar(select(func.count()).select_from(Transfer)) == 0
+    assert db.scalar(select(func.count()).select_from(AutoTransfer)) == 0
+
+
+@pytest.mark.parametrize("message,expected", [("0원", 0), ("-500원", -500), ("−500원", -500), ("1,500원", 1500)])
+def test_plain_amount_only_updates_amount_without_model(bank, monkeypatch, message, expected):
+    _, db, user, _, source, _, target = bank
+    config = {"configurable": {"db": db, "user_id": user.id}}
+    draft = {"auto": True, "from_id": str(source.id),
+             "to": {"account_id": str(target.id), "account_num": target.account_num,
+                    "holder_name": "홍길동", "alias": None}}
+    def unexpected_model_call(_):
+        raise AssertionError("명확한 금액 답변에는 모델을 호출하지 않는다")
+    for name in ("router_llm", "auto_slot_llm"):
+        monkeypatch.setattr(agent, name, SimpleNamespace(invoke=unexpected_model_call))
+    state = {"message": message, "intent": "AUTO_TRANSFER", "draft": draft}
+    assert agent.router(state, config)["intent"] == "AUTO_TRANSFER"
+    result = agent.transfer_slots(state, config)
+    assert result["status"] == "ask"
+    assert result["draft"]["to"] == draft["to"] and result["draft"]["from_id"] == draft["from_id"]
+    assert result["draft"]["amount"] == expected
+    assert ("얼마" if expected <= 0 else "매주") in result["answer"]
+    assert agent.transfer_reply_slots({"message": target.account_num.replace("-", ""), "draft": draft}, config) is None
+
+
+@pytest.mark.parametrize("scheduled,message,intent", [
+    (True, "자동이체 말고 지금 보내줘", "TRANSFER"),
+    (True, "자동이체 말고 지금 보내줘", "AUTO_TRANSFER"),
+    (False, "매월 자동이체로 바꿔줘", "AUTO_TRANSFER"),
+    (False, "매월 자동이체로 바꿔줘", "TRANSFER"),
+])
+def test_changing_transfer_kind_requires_cancelling_existing_draft(bank, monkeypatch, scheduled, message, intent):
+    _, db, user, _, _, _, _ = bank
+    config = {"configurable": {"db": db, "user_id": user.id}}
+    monkeypatch.setattr(agent, "router_llm", SimpleNamespace(invoke=lambda _: agent.Route(intent=intent)))
+    result = agent.router({"message": message, "draft": {"auto": scheduled, "amount": 500}}, config)
+    assert result["intent"] == ("AUTO_TRANSFER" if scheduled else "TRANSFER")
+    assert result["status"] == "ask" and "취소" in result["answer"]

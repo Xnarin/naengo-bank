@@ -52,6 +52,7 @@ CARD_NUMBER = re.compile(r"(?<![0-9])(?:[0-9]{4}(?:[- ]?[0-9]{4}){3}|[0-9]{4})(?
 ACCOUNT_REF_RULE = "메시지의 [계좌번호1] 같은 표시는 계좌번호다. 계좌를 가리키는 필드에는 표시 전체를 그대로 복사한다."
 SELF_RECIPIENT = re.compile(r"(?:나(?:한테|에게)?|(?:내|본인)\s*(?:계좌|통장))(?:에|로|으로)?")
 LAST_TRANSFER_AMOUNT = re.compile(r"(?:저번|지난번|직전|마지막)(?:에)?\s*(?:보낸|송금한|이체한)\s*(?:만큼|금액(?:만큼|으로|과\s*같이))")
+AMOUNT_REPLY = re.compile(r"([+−-]?[0-9]+(?:,[0-9]{3})*)\s*원?")
 PAIR_PURPOSE_OPTIONS = [
     {"label": "일상 결제·생활비", "value": "일상 결제용으로 입출금통장과 파킹통장을 비교해줘"},
     {"label": "잠시 돈 보관", "value": "돈을 잠시 보관하려고 입출금통장과 파킹통장을 비교해줘"},
@@ -224,6 +225,26 @@ def source_choice_hint(state: AgentState, config) -> str | None:
     return matches[0].account_num if len(matches) == 1 else None
 
 
+def transfer_reply_slots(state: AgentState, config) -> TransferSlots | None:
+    d = state.get("draft")
+    if not d:
+        return None
+    schema = AutoTransferSlots if d.get("auto") else TransferSlots
+    hint = source_choice_hint(state, config)
+    if hint is not None:
+        return schema(from_hint=hint)
+    message = state["message"].strip()
+    amount = AMOUNT_REPLY.fullmatch(message)
+    if amount and not ACCOUNT_NUMBER.fullmatch(message):
+        return schema(amount=int(amount[1].replace(",", "").replace("−", "-")))
+    if d.get("auto"):
+        if message in ("매월", "매주"):
+            return schema(cycle="MONTHLY" if message == "매월" else "WEEKLY")
+        if re.fullmatch(r"(?:[0-9]{1,2}\s*일|[월화수목금토일]요일)(?:에)?", message):
+            return schema()
+    return None
+
+
 def router(state: AgentState, config):
     d = state.get("draft")
     _, user_id = ctx(config)
@@ -233,7 +254,7 @@ def router(state: AgentState, config):
         return {"intent": "ACCOUNT_QUERY"}
     if user_id is not None and d is not None and not d.get("to") and ACCOUNT_NUMBER.fullmatch(state["message"].strip()):
         return {"intent": "AUTO_TRANSFER" if d.get("auto") else "TRANSFER"}
-    if user_id is not None and source_choice_hint(state, config) is not None:
+    if user_id is not None and transfer_reply_slots(state, config) is not None:
         return {"intent": "AUTO_TRANSFER" if d.get("auto") else "TRANSFER"}
     pending_intent = "AUTO_TRANSFER" if d and d.get("auto") else "TRANSFER"
     pending = (f"{pending_intent} 등록 중 (받는 분={d.get('recipient') or '?'}, 금액={d.get('amount') or '?'}). "
@@ -248,6 +269,13 @@ def router(state: AgentState, config):
     route = router_llm.invoke(ACCOUNT_REF_RULE + "\n" + ROUTER_PROMPT.format(
         message=message, pending=redact_accounts(pending), history=history_text(state)))
     intent = route.intent
+    if d and intent in ("TRANSFER", "AUTO_TRANSFER"):
+        # 후속 답변의 재분류로 진행 중인 이체 종류와 조건을 버리지 않는다.
+        incompatible = (r"지금|즉시|바로|한\s*번|이번만" if d.get("auto") else r"자동|매월|매주|정기|반복|예약")
+        if re.search(incompatible, state["message"]):
+            return {"intent": pending_intent, "status": "ask",
+                    "answer": "진행 중인 이체의 종류를 바꾸려면 먼저 ‘취소’라고 말한 뒤 새로 요청해 주세요."}
+        intent = pending_intent
     if user_id is None and intent in NEED_LOGIN:
         return {"intent": intent, "status": "guided"}
     hint = (route.account_hint or "").strip()
@@ -484,9 +512,9 @@ def transfer_slots(state: AgentState, config):
         d["auto"] = True
     message = state["message"].strip()
     reuse_amount = not scheduled and bool(LAST_TRANSFER_AMOUNT.search(message))
-    source_hint = source_choice_hint(state, config)
-    if source_hint is not None:
-        s = AutoTransferSlots(from_hint=source_hint) if scheduled else TransferSlots(from_hint=source_hint)
+    reply = transfer_reply_slots(state, config)
+    if reply is not None:
+        s = reply
     elif not d.get("to") and ACCOUNT_NUMBER.fullmatch(message):
         s = TransferSlots(recipient=account_digits(message))
     else:

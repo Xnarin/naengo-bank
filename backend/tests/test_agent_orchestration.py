@@ -128,6 +128,31 @@ def test_chat_auto_transfer_registers_once_after_pin_without_immediate_debit(ban
     assert_ledger(engine)
 
 
+def test_auto_transfer_stepwise_amount_remains_schedule_through_pin(bank, monkeypatch):
+    client, engine, _ = bank
+    with Session(engine) as db:
+        db.get(Account, evaluate.A_MAIN).is_favorite = False
+        db.commit()
+    monkeypatch.setattr(agent, "router_llm", SimpleNamespace(invoke=lambda _: agent.Route(intent="AUTO_TRANSFER")))
+    monkeypatch.setattr(agent, "auto_slot_llm", SimpleNamespace(invoke=lambda _: agent.AutoTransferSlots()))
+    data = chat(client, "자동 송금 예약").json()
+    thread = data["thread_id"]
+    monkeypatch.setattr(agent, "router_llm", SimpleNamespace(invoke=lambda _: agent.Route(intent="TRANSFER")))
+    for message in ("220-1111-2222", "110-4823-0591에서", "500원", "매월"):
+        data = chat(client, message, thread_id=thread).json()
+        assert data["status"] == "ask" and data["confirm"] is None
+    data = chat(client, "15일", thread_id=thread).json()
+    assert data["confirmation_type"] == "AUTO_TRANSFER"
+    assert data["confirm"]["금액"] == 500 and data["confirm"]["주기"] == "매월 15일"
+    assert_ledger(engine)
+    assert confirm(client, {"thread_id": thread, "confirmation_id": data["confirmation_id"]}).json()["status"] == "done"
+    with Session(engine) as db:
+        schedule, = db.scalars(select(AutoTransfer)).all()
+        assert (schedule.from_account_id, schedule.to_account_id, schedule.amount) == (evaluate.A_MAIN, evaluate.A_MOM, 500)
+        assert schedule.cycle == "MONTHLY" and schedule.run_day == 15
+    assert_ledger(engine)
+
+
 def test_schedule_asks_for_missing_day_and_unsupported_time_can_be_corrected(bank, monkeypatch):
     client, engine, _ = bank
     monkeypatch.setattr(agent, "router_llm", SimpleNamespace(invoke=lambda _: agent.Route(intent="AUTO_TRANSFER")))
