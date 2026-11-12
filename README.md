@@ -1,78 +1,106 @@
 # 내금고
 
-AI 금융 어시스턴트를 결합한 모바일 인터넷뱅킹 클론 프로젝트.
+![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-00796B?style=flat-square&logo=fastapi&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=flat-square&logo=postgresql&logoColor=white)
+![LangGraph](https://img.shields.io/badge/LangGraph-1C3C3C?style=flat-square&logo=langgraph&logoColor=white)
+![Gemini](https://img.shields.io/badge/Gemini-635BBD?style=flat-square&logo=googlegemini&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-1D63ED?style=flat-square&logo=docker&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2671E5?style=flat-square&logo=githubactions&logoColor=white)
+![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square)
 
-## 폴더 구조
+| 첫 커밋 | 설계 | 구현 |
+|---|---|---|
+| 2026.11.05 | 4인 공동 설계 | 개인 구현 |
 
-```text
-bank_clone/
-├─ README.md              이 파일 (전체 지도)
-├─ PRODUCT.md, DESIGN.md  제품 정의·디자인 시스템 (impeccable 스킬이 루트에서 읽음)
-│
-├─ docs/                  설계 문서
-│  ├─ db-design.md        DB 구조와 설계 결정 (먼저 읽기)
-│  ├─ bank.dbml           DB 스키마 원본 (drawDB로 가져오기)
-│  ├─ backend-implementation.md  백엔드 작업 지시서 (단계, API 명세, 에러 코드)
-│  ├─ backend-design.md   백엔드 스택, 이체 공통 함수
-│  └─ agent-design.md     AI Agent (LangGraph) 설계
-│
-├─ src/, index.html       프론트엔드 (React + Vite + Tailwind)
-├─ package.json, vite.config.ts, tsconfig.json
-│
-├─ backend/               API 서버 (FastAPI + PostgreSQL) — backend/README.md
-│
-├─ rag/                   챗봇 RAG 파이프라인 (청킹 → 임베딩 → 검색 → 평가)
-├─ data/rag/              RAG 원천 데이터와 골든셋 — data/rag/README.md
-├─ scripts/               보조 스크립트 (RAG 데이터 수집, 챗봇 시나리오 체크)
-│
-└─ rag-agent-practice/    이전 RAG 실습 (참고용, 이 앱과 별개)
-```
+내금고는 **모바일 뱅킹 화면과 AI 금융 어시스턴트를 연결한 가상 인터넷뱅킹 프로젝트**입니다. 화면에서 계좌를 조회하거나 송금할 수 있고, 같은 거래 데이터를 바탕으로 챗봇에 금융 질문을 하거나 소비 내역을 분석할 수 있습니다.
 
-## 실행
+[운영 데모](https://naengo.com)에서 **가입 없이 체험하기**를 선택하면 가상 계좌와 소비 내역을 확인할 수 있습니다. 체험용 PIN은 `123456`입니다. 잔액·송금·카드 결제는 시뮬레이션입니다.
 
-현재 프론트는 Mock 저장소 대신 실제 FastAPI·PostgreSQL을 사용합니다. 루트에서 Docker 서버와 Vite를 실행합니다.
+## 주요 기능
+
+| 기능 | 구현 내용 |
+|---|---|
+| 모바일 뱅킹 | 이메일 가입, 비밀번호·PIN 로그인, 입출금통장 개설·관리, 거래내역 조회, 일반·예약·자동이체, 가상 카드 발급·결제·관리, 입금 및 자동이체 결과 알림 |
+| 대화형 뱅킹 | 본인 잔액·거래내역·이체한도 조회, 즐겨찾기·최근 송금 상대 선택, 일반 송금·자동이체 등록, 카드 일시 정지·분실 신고. 금융 작업은 확인 화면에서 PIN을 검증한 뒤 실행 |
+| 금융 문서 질의응답 | 내금고 FAQ·상품 설명, 금융 법령·표준약관, 예금보험공사 착오송금 FAQ, 기업은행 금융용어 자료를 검색해 출처와 함께 답변. 근거가 부족하면 답변 보류 |
+| 소비 분석 | 지출 분류와 전월 비교, 월말 잔액·다음 달 출금 예측, 월 정기결제 후보 탐지, 소비 이력에 맞는 입출금통장 후보 비교 |
+
+챗봇에서 **“계좌번호를 잘못 눌러 송금했어요. 어떻게 해야 하나요?”**로 문서 검색을, **“지난달 소비 패턴 분석해줘”**로 거래내역 분석을, **“송금해줘”**로 수신인 선택과 PIN 확인 흐름을 볼 수 있습니다.
+
+## 구현에서 중요했던 결정
+
+- **송금의 성공을 DB 트랜잭션으로 정의했습니다.** 일반 송금·챗봇 송금·자동이체가 공통 서비스를 사용합니다. 출금과 입금, 양쪽 원장, 해당 거래의 알림을 함께 저장하고 중간에 실패하면 롤백합니다. 계좌 ID 순서로 행을 잠그고, 요청마다 부여한 멱등키로 중복 출금을 막습니다. [이체 서비스](backend/app/services/transfers.py)
+- **AI가 이해한 요청을 서버에서 검증합니다.** 서버는 로그인 토큰으로 사용자를 식별하고, 계좌 소유권·대화 소유권·확인 ID를 검사합니다. 전용 입력창의 PIN은 `/agent/confirm`에서 Argon2 해시로 검증하고, 그래프에는 승인 여부를 전달합니다. 송금은 확인 화면에 사용한 대상과 금액으로 실행합니다. [에이전트 설계](docs/agent-design.md) · [확인 API](backend/app/api/agent.py)
+- **분석과 화면에 같은 계산 결과를 사용합니다.** Python 도구가 카드 소비를 집계하고 내 계좌끼리의 이체를 제외합니다. 외부 이체는 용도 미확정 출금으로 따로 표시합니다. AI는 계산 결과를 설명하고 차트도 같은 값을 사용합니다. 잔액 예측은 미래 입금 0원을 가정하며, 거래 이력이 부족하면 예측을 보류합니다. [소비 분석·추천 설계](docs/agent-insights.md)
+- **RAG와 계좌 조회는 각각의 데이터에 연결합니다.** 금융 규정·약관 질문은 Gemini 임베딩으로 문서를 검색합니다. 사용자 잔액과 거래내역은 인증된 사용자 범위 안에서 PostgreSQL을 조회합니다. [RAG 자료와 평가 기록](data/rag/README.md)
+
+| 영역 | 기술 |
+|---|---|
+| 화면 | React, TypeScript, Vite, Tailwind CSS |
+| 서버·DB | FastAPI, SQLAlchemy, PostgreSQL 17, Alembic, Docker Compose |
+| AI | LangGraph, Gemini 3.5 Flash-Lite, Gemini Embedding, 벡터 검색 |
+| 배포 | GitHub Actions, AWS EC2·RDS, Nginx, AWS Systems Manager |
+
+## 테스트와 결과
+
+| 검증 | 확인한 결과 |
+|---|---|
+| 백엔드·프론트 | 2026-11-11 배포에서 백엔드 **193개 테스트**와 프론트 빌드가 통과했습니다. 회원 인증, 타인 계좌 차단, 송금·카드 처리, 자동이체, 챗봇 확인 흐름을 검사했습니다. [CI 실행 기록](https://github.com/Xnarin/naengo-bank/actions/runs/42935699599) |
+| PostgreSQL 동시성 | 잔액이나 한도가 한 건만 허용하는 두 요청에서 한 건만 성공하는지, 같은 요청의 재전송이나 자동이체 회차 중복이 원장에 두 번 남지 않는지 확인했습니다. [이체 검사](backend/tests/check_transfer_postgres.py) · [카드·자동이체 검사](backend/tests/check_banking_postgres.py) |
+| 실제 모델 조회 | 같은 가상 계정과 96턴으로 Flash-Lite를 비교했습니다. 날짜 계산과 계좌 매칭을 서버에서 보완하고 조회 결과를 확인하도록 바꾼 뒤 **78/96 → 96/96**, 응답 시간 중앙값 **2.43초 → 1.19초**를 기록했습니다. |
+| RAG 검색 | 원본 15개 파일로 검색 청크 646개를 만들었습니다. 평가용 90문항 중 답변 가능한 85문항에서 벡터 검색 **Hit@1 85.9%, Hit@5 97.6%**를 기록했습니다. Hit@5는 상위 다섯 검색 결과에 정답 근거가 포함된 비율입니다. [RAG 평가](data/rag/README.md) |
+| 스테이징 부하 | 2026-11-09 AWS 스테이징에서 가상 계정 두 개의 잔액 질문 **226/226**이 기대값과 일치했습니다. 분당 24회 단계의 p95는 **3.81초**, 홈 조회를 함께 보냈을 때 챗봇 p95는 **4.06초**, 홈 API 조회 p95는 **199ms**였습니다. |
+| 화면·배포 확인 | 브라우저에서 로그인, 일반·AI 송금, 알림, 가상 카드 결제, 새로고침 후 데이터 유지를 확인했습니다. `main` 푸시로 테스트·빌드·EC2 배포가 이어지고, 배포 스크립트가 상태를 확인해 실패 시 직전 버전으로 되돌립니다. [배포 워크플로](.github/workflows/deploy.yml) |
+
+모델과 부하 결과는 정해진 질문과 가상 데이터에서 측정했습니다. RAG의 검색 점수는 근거를 찾은 비율이며, 스테이징 부하는 해당 조건에서 분당 24회까지 확인한 결과입니다.
+
+## 회고
+
+- **송금 성공보다 실패 후 상태를 정의하는 데 시간이 더 들었습니다.** 연결이 끊기면 사용자 화면에는 실패로 보여도 이미 송금됐을 수 있습니다. 승인 응답이 불확실할 때는 요청을 다시 실행하기 전에 기존 송금 결과를 조회하도록 바꿨습니다. 같은 대화에서 새 확인 화면이 만들어지면 이전 확인으로 승인할 수 없도록 확인 ID도 연결했습니다.
+- **짧은 후속 답변에서 모델이 이전 조건을 잃는 문제를 발견했습니다.** 자동이체를 등록하다 출금 계좌나 금액만 답하면 모델이 일반 송금으로 분류하거나 같은 질문을 반복했습니다. 진행 중인 이체 종류를 서버가 유지하고, 화면에서 고른 계좌를 다시 모델로 해석하지 않도록 바꿨습니다. [자동이체 대화 회귀 기록](docs/agent-auto-transfer-loop.md)
+- **가벼운 모델을 쓰려면 모델에 맡길 일을 줄여야 했습니다.** 날짜·계좌·금액을 코드에서 확정할 수 있는 경우를 먼저 처리하자, 같은 평가 질문에서 조회 정확도와 응답 시간이 함께 개선됐습니다.
+
+현재 대화 상태는 서버 메모리에 있어 재시작하면 사라집니다. 다중 서버에서 대화와 확인 상태를 공유하는 작업, 장시간 혼합 부하, 실제 사용자 발화에서의 분석·답변 품질은 후속 검증 범위입니다.
+
+## 로컬 실행
+
+Node.js, Docker Compose와 `uv`를 준비합니다. 처음 실행할 때 저장소 루트에서 예시 파일을 복사합니다.
 
 ```powershell
+Copy-Item .env.example .env
+Copy-Item .env.docker.example .env.docker
+```
+
+- `.env`에 `GEMINI_API_KEY`를 설정합니다.
+- `.env.docker`에 `POSTGRES_PASSWORD`, `JWT_SECRET`, `CARD_KEY`를 설정하고, Vite 프록시와 맞게 `API_PORT=8001`을 지정합니다. 카드 키 생성 방법은 [백엔드 실행 문서](backend/README.md)에 있습니다.
+
+```powershell
+npm ci
+uv run --project backend python rag/embed.py
 docker compose --env-file .env.docker up -d --build
 npm run dev
 ```
 
-앱: http://127.0.0.1:5173 · API 문서: http://127.0.0.1:8001/docs
+`rag/embed.py`는 준비된 `data/rag/chunks.jsonl`을 Gemini API로 임베딩해 로컬 검색 인덱스를 만듭니다. 생성된 인덱스가 있으면 그 단계를 생략할 수 있습니다. 프론트는 [localhost:5173](http://127.0.0.1:5173), API 문서는 [localhost:8001/docs](http://127.0.0.1:8001/docs)에서 열립니다.
 
-개발용 테스트 계정: `test1@example.com`, `test2@example.com`. 공통 비밀번호 `Test1234!`, PIN `493827`. 서로 다른 탭에서 각각 로그인해 송금·입금 알림을 확인할 수 있습니다. 신규 개발 DB에서는 다음으로 가상 체험 계정·계좌·카드를 준비할 수 있습니다. 실제 이메일은 발송하지 않습니다.
+송금과 입금 알림을 두 계정으로 확인하려면 개발 모드에서 테스트 계정을 준비합니다.
 
 ```powershell
 Get-Content -Raw -Encoding utf8 backend/tests/seed_demo.py | docker compose --env-file .env.docker exec -T api python -
 ```
 
-프론트의 `/api` 요청을 Vite가 Docker API 8001번 포트로 전달합니다. 로그인 토큰은 현재 탭의 sessionStorage에, 계좌·거래·카드·일정·알림은 서버 DB에 저장합니다. 상품 설명과 가상 가맹점 목록은 예시 콘텐츠를 사용합니다. 운영용 프론트 호스팅에는 같은 `/api` 경로의 역방향 프록시 구성이 필요합니다.
+로컬 테스트 계정은 `test1@example.com`, `test2@example.com`이며 비밀번호는 `Test1234!`, PIN은 `493827`입니다. 두 탭에 각 계정으로 로그인하면 수신 알림을 확인할 수 있습니다.
 
-일반 화면 송금은 `/transfers`, AI 확인 송금·카드 조치는 `/agent/confirm`을 각각 한 번 호출합니다. 응답 유실 시 일반 이체는 요청 키로 결과를 재조회합니다. PIN은 작업 요청에 전달하며 브라우저 저장소에 보관하지 않습니다.
+| 검증 명령 | 실행 위치 |
+|---|---|
+| `uv run pytest -q` | `backend/` |
+| `npm run build` | 저장소 루트 |
+| `node tests/session.mjs` | 저장소 루트 |
+| `node tests/insight-cards.mjs` | 저장소 루트 |
+| `uv run --project backend python rag/evaluate.py vector` | 저장소 루트 |
 
-가상 카드 결제도 요청 키로 중복 처리를 방지합니다. 통신 오류가 나면 브라우저의 localStorage에 보관한 요청 내용·키로 같은 결제를 재시도하며, 성공 후에는 이를 지우고 다음 결제에 새 키를 씁니다. 새로고침·탭 종료 후에도 미확인 요청을 유지합니다. 미확인 결제가 남아 있으면 다른 금액·가맹점 결제에 앞서 원래 조건으로 재시도해야 합니다.
+세션 검사 스크립트는 진행 중인 갱신과 백그라운드 갱신이 겹치는 시나리오에서 테스트의 대기가 풀리지 않아 중단됩니다. [세션 검사 코드](tests/session.mjs#L98)
 
-앱을 보는 동안 10초마다, 화면 이동·창 복귀·인터넷 재연결 시 계좌·거래·이체 일정·알림을 갱신합니다. 다른 사람의 입금과 자동·예약이체 성공/실패는 앱 안의 알림에 표시됩니다. 알림을 읽는 중 새로 도착한 항목은 읽지 않은 상태를 유지합니다. 브라우저를 닫은 상태의 푸시 알림은 지원하지 않습니다.
-
-AI 채팅에서 소비 패턴 분석·이번 달/다음 달 지출 및 잔액 예측·정기결제 후보 탐지를 사용할 수 있습니다. 모든 수치는 Python 도구가 계산하고 AI는 결과를 설명합니다. 예측은 미래 입금 0원 가정의 추정이며 데이터가 부족하면 보류합니다. [계산 방식과 검사 방법](docs/agent-insights.md)을 참고하세요. 테스트1에는 잔액을 유지한 채 3개월치 가상 분석 이력을 추가했고, 테스트2는 짧은 이력에서 예측을 보류하는 경우를 확인할 수 있습니다.
-
-“내 소비패턴에 맞는 통장 추천해줘”는 본인 거래 패턴과 보유 통장·가입 조건을 확인한 비교 후보를 보여줍니다. 상품 상세와 추천의 공개 조건은 `data/products.json` 한 파일을 공유합니다. 기록이 부족하면 사용 목적을 먼저 묻고, 가입 자격이나 우대금리 적용을 확정하지 않습니다.
-
-검증: 프론트 빌드 통과, 백엔드 87개 테스트 통과. 실제 브라우저에서 로그인·계좌 조회·일반 송금·AI PIN 확인 송금·가상 카드 결제·새로고침 후 서버 데이터 복원을 확인했습니다. `/api` 프록시로 자동이체 등록·취소와 알림 읽음도 확인했습니다.
-
-| 대상 | 명령 | 위치 |
-|---|---|---|
-| 프론트엔드 | `npm install` → `npm run dev` (http://localhost:5173) | 루트 |
-| 백엔드 | `uv sync` → `uv run uvicorn app.main:app --reload --env-file .env` | `backend/` |
-| 백엔드 테스트 | `uv run pytest` | `backend/` |
-| 로그인·알림·갱신 상태 검사 | `node tests/session.mjs` | 루트 |
-| AI 분석 카드·차트 표시 검사 | `node tests/insight-cards.mjs` | 루트 |
-| RAG 청킹 | `python rag/chunk.py` | 루트 |
-| RAG 데이터 수집 | `node scripts/fetch-rag-data.mjs` | 루트 |
-| 챗봇 시나리오 체크 | `node scripts/check-chat.mjs` | 루트 |
-
-## 환경 변수
-
-- 루트 `.env`: 에이전트/RAG의 `GEMINI_API_KEY`. 브라우저에 키를 전달하지 않습니다.
-- 루트 `.env.docker`: PostgreSQL·JWT·카드 암호화 키·SMTP 등 Docker 서버 설정.
-- `backend/.env`: `DATABASE_URL`, `JWT_SECRET`. 예시는 `backend/.env.example`.
-- `.env`는 커밋하지 않는다 (`.gitignore`에 포함).
+화면은 [`src/`](src/), 서버와 마이그레이션은 [`backend/`](backend/), 문서 검색과 평가는 [`rag/`](rag/)와 [`data/rag/`](data/rag/), 시스템 설계는 [`docs/`](docs/)에 있습니다.
