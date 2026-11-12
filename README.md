@@ -1,5 +1,9 @@
 # 내금고
 
+<p align="center">
+  <a href="https://naengo.com"><img src="https://raw.githubusercontent.com/Xnarin/Xnarin/f640acfe97ad8a17b0805db157a2e04c470628ff/assets/naengo.png" width="100%" alt="내금고. 가상 모바일 뱅킹과 AI 어시스턴트. 송금 요청, PIN 확인, 서버에서 이체 실행." /></a>
+</p>
+
 ![React](https://img.shields.io/badge/React-20232A?style=flat-square&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-00796B?style=flat-square&logo=fastapi&logoColor=white)
@@ -10,13 +14,16 @@
 ![GitHub Actions](https://img.shields.io/badge/GitHub%20Actions-2671E5?style=flat-square&logo=githubactions&logoColor=white)
 ![AWS](https://img.shields.io/badge/AWS-232F3E?style=flat-square)
 
-| 첫 커밋 | 설계 | 구현 |
+| 프로젝트 기간 | 설계 | 구현 |
 |---|---|---|
-| 2026.11.05 | 4인 공동 설계 | 개인 구현 |
+| 2026.11.03 ~ 2026.11.11 | 4인 공동 설계 | 개인 구현 |
 
-내금고는 **모바일 뱅킹 화면과 AI 금융 어시스턴트를 연결한 가상 인터넷뱅킹 프로젝트**입니다. 화면에서 계좌를 조회하거나 송금할 수 있고, 같은 거래 데이터를 바탕으로 챗봇에 금융 질문을 하거나 소비 내역을 분석할 수 있습니다.
+화면에서 계좌를 조회하고 송금할 수 있으며, 챗봇에서는 같은 계좌의 거래내역을 분석하거나 금융 문서에 근거한 답변을 받을 수 있습니다.
 
-[운영 데모](https://naengo.com)에서 **가입 없이 체험하기**를 선택하면 가상 계좌와 소비 내역을 확인할 수 있습니다. 체험용 PIN은 `123456`입니다. 잔액·송금·카드 결제는 시뮬레이션입니다.
+[**운영 데모 열기 ↗**](https://naengo.com) · [주요 기능](#주요-기능) · [테스트와 결과](#테스트와-결과) · [회고](#회고) · [로컬 실행](#로컬-실행)
+
+> [!TIP]
+> 데모에서 **가입 없이 체험하기**를 선택하면 가상 계좌와 소비 내역을 볼 수 있습니다. 체험용 PIN은 `123456`이며 잔액·송금·카드 결제는 시뮬레이션입니다.
 
 ## 주요 기능
 
@@ -36,6 +43,8 @@
 - **분석과 화면에 같은 계산 결과를 사용합니다.** Python 도구가 카드 소비를 집계하고 내 계좌끼리의 이체를 제외합니다. 외부 이체는 용도 미확정 출금으로 따로 표시합니다. AI는 계산 결과를 설명하고 차트도 같은 값을 사용합니다. 잔액 예측은 미래 입금 0원을 가정하며, 거래 이력이 부족하면 예측을 보류합니다. [소비 분석·추천 설계](docs/agent-insights.md)
 - **RAG와 계좌 조회는 각각의 데이터에 연결합니다.** 금융 규정·약관 질문은 Gemini 임베딩으로 문서를 검색합니다. 사용자 잔액과 거래내역은 인증된 사용자 범위 안에서 PostgreSQL을 조회합니다. [RAG 자료와 평가 기록](data/rag/README.md)
 
+## 기술 스택
+
 | 영역 | 기술 |
 |---|---|
 | 화면 | React, TypeScript, Vite, Tailwind CSS |
@@ -45,14 +54,14 @@
 
 ## 테스트와 결과
 
-| 검증 | 확인한 결과 |
-|---|---|
-| 백엔드·프론트 | 2026-11-11 배포에서 백엔드 **193개 테스트**와 프론트 빌드가 통과했습니다. 회원 인증, 타인 계좌 차단, 송금·카드 처리, 자동이체, 챗봇 확인 흐름을 검사했습니다. [CI 실행 기록](https://github.com/Xnarin/naengo-bank/actions/runs/42935699599) |
-| PostgreSQL 동시성 | 잔액이나 한도가 한 건만 허용하는 두 요청에서 한 건만 성공하는지, 같은 요청의 재전송이나 자동이체 회차 중복이 원장에 두 번 남지 않는지 확인했습니다. [이체 검사](backend/tests/check_transfer_postgres.py) · [카드·자동이체 검사](backend/tests/check_banking_postgres.py) |
-| 실제 모델 조회 | 같은 가상 계정과 96턴으로 Flash-Lite를 비교했습니다. 날짜 계산과 계좌 매칭을 서버에서 보완하고 조회 결과를 확인하도록 바꾼 뒤 **78/96 → 96/96**, 응답 시간 중앙값 **2.43초 → 1.19초**를 기록했습니다. |
-| RAG 검색 | 원본 15개 파일로 검색 청크 646개를 만들었습니다. 평가용 90문항 중 답변 가능한 85문항에서 벡터 검색 **Hit@1 85.9%, Hit@5 97.6%**를 기록했습니다. Hit@5는 상위 다섯 검색 결과에 정답 근거가 포함된 비율입니다. [RAG 평가](data/rag/README.md) |
-| 스테이징 부하 | 2026-11-09 AWS 스테이징에서 가상 계정 두 개의 잔액 질문 **226/226**이 기대값과 일치했습니다. 분당 24회 단계의 p95는 **3.81초**, 홈 조회를 함께 보냈을 때 챗봇 p95는 **4.06초**, 홈 API 조회 p95는 **199ms**였습니다. |
-| 화면·배포 확인 | 브라우저에서 로그인, 일반·AI 송금, 알림, 가상 카드 결제, 새로고침 후 데이터 유지를 확인했습니다. `main` 푸시로 테스트·빌드·EC2 배포가 이어지고, 배포 스크립트가 상태를 확인해 실패 시 직전 버전으로 되돌립니다. [배포 워크플로](.github/workflows/deploy.yml) |
+| 검증 | 결과 | 확인 범위 |
+|---|---|---|
+| 배포 CI | **193개 테스트 통과** · 프론트 빌드 성공 | 2026-11-11 배포에서 회원 인증, 타인 계좌 차단, 송금·카드, 자동이체, 챗봇 확인 흐름을 검사했습니다. [CI 실행 기록](https://github.com/Xnarin/naengo-bank/actions/runs/42935699599) |
+| PostgreSQL 동시성 | **중복 출금 방지 확인** | 잔액이나 한도가 한 건만 허용하면 한 건만 성공하고, 요청 재전송과 자동이체 회차 중복은 원장에 한 번만 기록됩니다. [이체 검사](backend/tests/check_transfer_postgres.py) · [카드·자동이체 검사](backend/tests/check_banking_postgres.py) |
+| 실제 모델 조회 | **78/96 → 96/96**<br>응답 중앙값 **2.43초 → 1.19초** | 같은 가상 계정과 질문으로 Flash-Lite를 비교했습니다. 날짜 계산·계좌 매칭·조회 결과 확인을 서버에서 보완했습니다. |
+| RAG 검색 | **Hit@1 85.9% · Hit@5 97.6%** | 원본 15개 파일에서 청크 646개를 만들고, 평가용 90문항 중 답변 가능한 85문항에서 정답 근거가 검색 순위에 들어오는지 확인했습니다. [RAG 평가](data/rag/README.md) |
+| 스테이징 부하 | **226/226 정답**<br>분당 24회 단계 **p95 3.81초** | 2026-11-09 AWS 스테이징에서 가상 계정 두 개로 잔액을 조회했습니다. 홈과 함께 조회했을 때 p95는 챗봇 **4.06초**, 홈 API **199ms**였습니다. |
+| 화면·운영 배포 | **브라우저 흐름과 EC2 배포 확인** | 로그인, 일반·AI 송금, 알림, 가상 카드 결제, 새로고침 후 데이터 유지를 확인했습니다. `main` 푸시로 배포하며 상태 확인이 실패하면 직전 버전으로 복구합니다. [배포 워크플로](.github/workflows/deploy.yml) |
 
 모델과 부하 결과는 정해진 질문과 가상 데이터에서 측정했습니다. RAG의 검색 점수는 근거를 찾은 비율이며, 스테이징 부하는 해당 조건에서 분당 24회까지 확인한 결과입니다.
 
@@ -85,6 +94,9 @@ npm run dev
 
 `rag/embed.py`는 준비된 `data/rag/chunks.jsonl`을 Gemini API로 임베딩해 로컬 검색 인덱스를 만듭니다. 생성된 인덱스가 있으면 그 단계를 생략할 수 있습니다. 프론트는 [localhost:5173](http://127.0.0.1:5173), API 문서는 [localhost:8001/docs](http://127.0.0.1:8001/docs)에서 열립니다.
 
+<details>
+<summary>개발용 테스트 계정</summary>
+
 송금과 입금 알림을 두 계정으로 확인하려면 개발 모드에서 테스트 계정을 준비합니다.
 
 ```powershell
@@ -92,6 +104,11 @@ Get-Content -Raw -Encoding utf8 backend/tests/seed_demo.py | docker compose --en
 ```
 
 로컬 테스트 계정은 `test1@example.com`, `test2@example.com`이며 비밀번호는 `Test1234!`, PIN은 `493827`입니다. 두 탭에 각 계정으로 로그인하면 수신 알림을 확인할 수 있습니다.
+
+</details>
+
+<details>
+<summary>테스트와 평가 실행 명령</summary>
 
 | 검증 명령 | 실행 위치 |
 |---|---|
@@ -102,5 +119,7 @@ Get-Content -Raw -Encoding utf8 backend/tests/seed_demo.py | docker compose --en
 | `uv run --project backend python rag/evaluate.py vector` | 저장소 루트 |
 
 세션 검사 스크립트는 진행 중인 갱신과 백그라운드 갱신이 겹치는 시나리오에서 테스트의 대기가 풀리지 않아 중단됩니다. [세션 검사 코드](tests/session.mjs#L98)
+
+</details>
 
 화면은 [`src/`](src/), 서버와 마이그레이션은 [`backend/`](backend/), 문서 검색과 평가는 [`rag/`](rag/)와 [`data/rag/`](data/rag/), 시스템 설계는 [`docs/`](docs/)에 있습니다.
